@@ -74,6 +74,11 @@ are cooperative; they cannot preempt arbitrary Rust code inside a future's poll.
 For a separate application workspace, use the vendored Tonic and code generator as
 path dependencies, and add `[patch.crates-io]` entries for the vendored Tokio and
 Hyper, as this workspace does. Patches in dependency workspaces do not propagate.
+The vendored Hyper constrains `tokio-util` to the runtime-compatible 0.7.11;
+when migrating an existing application, refresh its lockfile after applying
+the patches (the fresh-workspace fixture uses `cargo generate-lockfile` semantics)
+and verify `cargo tree -d` contains no second Tokio. CI also builds a fresh external workspace to
+catch dependency resolution that the repository lockfile would otherwise hide.
 
 ## Validation
 
