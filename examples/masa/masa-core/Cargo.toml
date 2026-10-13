@@ -1,0 +1,36 @@
+[package]
+name = "masa-core"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[features]
+sched_fifo = []
+sched_slo = []
+sched_tailclipper = []
+sched_oracle = []
+sched_pred = ["estimator", "sched_slo"]
+abort_slo = []
+abort_slack = ["estimator"]
+signal_slack = ["estimator"]
+estimator = []
+est_mean_var = []
+est_rms = []
+est_hist = []
+ac_pred = ["estimator"]
+ac_rajomon = []
+trace_queue_latency = []
+deadline_equals_slack = []
+# Replaces the wall clock with a virtual per-thread clock for deterministic tests.
+test_clock = []
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rpcstack-wire = { path = "../../../libs/rpcstack-wire" }
+log = "0.4"
+http = "0.2"
+tower-service = "0.3"
+
+[dev-dependencies]
+base64 = "0.21"

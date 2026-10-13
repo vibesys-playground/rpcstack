@@ -1123,6 +1123,64 @@ dependencies = [
 ]
 
 [[package]]
+name = "masa"
+version = "0.1.0"
+dependencies = [
+ "hyper",
+ "masa-core",
+ "masa-policy",
+ "tokio",
+ "tonic",
+ "tower",
+]
+
+[[package]]
+name = "masa-core"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "http",
+ "log",
+ "rpcstack-wire",
+ "serde",
+ "serde_json",
+ "tower-service",
+]
+
+[[package]]
+name = "masa-policy"
+version = "0.1.0"
+dependencies = [
+ "dashmap",
+ "http",
+ "log",
+ "masa-core",
+ "once_cell",
+ "rajomon",
+ "rand 0.8.8",
+ "rand_distr",
+ "rpcstack",
+ "rpcstack-tonic",
+ "rpcstack-wire",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tonic",
+]
+
+[[package]]
+name = "masa-semantics"
+version = "0.1.0"
+dependencies = [
+ "http",
+ "masa",
+ "masa-core",
+ "rand 0.8.8",
+ "tokio",
+ "tonic",
+]
+
+[[package]]
 name = "matchers"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1330,6 +1388,21 @@ name = "openssl-probe"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d05e27ee213611ffe7d6348b942e8f942b37114c00cc03cec254295a4a17852e"
+
+[[package]]
+name = "paper-rpc"
+version = "0.1.0"
+dependencies = [
+ "prost",
+ "rajomon",
+ "rpcstack",
+ "rpcstack-tonic",
+ "tailclipper",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tonic-build",
+]
 
 [[package]]
 name = "parking_lot"
@@ -1661,6 +1734,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 
 [[package]]
+name = "rajomon"
+version = "0.1.0"
+dependencies = [
+ "dashmap",
+ "http",
+ "log",
+ "once_cell",
+ "rand 0.8.8",
+ "rand_distr",
+ "rpcstack",
+ "rpcstack-tonic",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tonic",
+]
+
+[[package]]
 name = "rand"
 version = "0.8.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1800,6 +1891,69 @@ dependencies = [
 ]
 
 [[package]]
+name = "rpcstack-aequitas"
+version = "0.1.0"
+dependencies = [
+ "rand 0.8.8",
+ "rpcstack-call",
+ "tokio",
+ "tonic",
+]
+
+[[package]]
+name = "rpcstack-breakwater"
+version = "0.1.0"
+dependencies = [
+ "async-stream",
+ "futures-core",
+ "prost",
+ "rand 0.8.8",
+ "rpcstack",
+ "rpcstack-call",
+ "rpcstack-testkit",
+ "rpcstack-tonic",
+ "serde",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tonic-build",
+]
+
+[[package]]
+name = "rpcstack-c3"
+version = "0.1.0"
+dependencies = [
+ "rand 0.8.8",
+ "rpcstack",
+ "rpcstack-call",
+ "rpcstack-testkit",
+ "rpcstack-tonic",
+ "serde",
+ "tokio",
+ "tonic",
+]
+
+[[package]]
+name = "rpcstack-call"
+version = "0.1.0"
+dependencies = [
+ "tokio",
+ "tonic",
+]
+
+[[package]]
+name = "rpcstack-dagor"
+version = "0.1.0"
+dependencies = [
+ "rpcstack",
+ "rpcstack-testkit",
+ "rpcstack-tonic",
+ "serde",
+ "tokio",
+ "tonic",
+]
+
+[[package]]
 name = "rpcstack-echo"
 version = "0.1.0"
 dependencies = [
@@ -1814,8 +1968,52 @@ dependencies = [
 ]
 
 [[package]]
+name = "rpcstack-hedged"
+version = "0.1.0"
+dependencies = [
+ "rpcstack",
+ "rpcstack-call",
+ "rpcstack-testkit",
+ "rpcstack-tonic",
+ "tokio",
+ "tonic",
+]
+
+[[package]]
+name = "rpcstack-policy-composition"
+version = "0.1.0"
+dependencies = [
+ "masa-core",
+ "masa-policy",
+ "rpcstack",
+ "rpcstack-breakwater",
+ "rpcstack-c3",
+ "rpcstack-call",
+ "rpcstack-dagor",
+ "rpcstack-testkit",
+ "rpcstack-tonic",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+]
+
+[[package]]
 name = "rpcstack-sched"
 version = "0.1.0"
+
+[[package]]
+name = "rpcstack-testkit"
+version = "0.1.0"
+dependencies = [
+ "prost",
+ "rpcstack",
+ "rpcstack-call",
+ "rpcstack-tonic",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tonic-build",
+]
 
 [[package]]
 name = "rpcstack-tonic"
@@ -2140,6 +2338,19 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.9",
+]
+
+[[package]]
+name = "tailclipper"
+version = "0.1.0"
+dependencies = [
+ "http",
+ "rpcstack",
+ "rpcstack-tonic",
+ "rpcstack-wire",
+ "serde",
+ "tokio",
+ "tonic",
 ]
 
 [[package]]

@@ -1,0 +1,15 @@
+[package]
+name = "rpcstack-testkit"
+version = "0.1.0"
+edition = "2021"
+publish = false
+[dependencies]
+rpcstack-call = { path = "../../libs/rpcstack-call" }
+rpcstack = { path = "../../libs/rpcstack" }
+rpcstack-tonic = { path = "../../libs/rpcstack-tonic" }
+tonic = { path = "../../libs/tonic/tonic" }
+tokio = { path = "../../libs/tokio/tokio", features = ["macros", "rt", "net", "time", "sync"] }
+tokio-stream = { version = "=0.1.15", features = ["net"] }
+prost = "0.12"
+[build-dependencies]
+tonic-build = { path = "../../libs/tonic/tonic-build" }

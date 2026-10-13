@@ -157,6 +157,18 @@ pub(crate) fn generate_internal<T: Service>(
                     Self::new_impl(inner)
                 }
 
+                /// Use explicit server-local hook state (for shared controllers or configuration).
+                pub fn with_server_context(inner: T, ctx: M::ServerContext) -> Self {
+                    Self {
+                        inner: _Inner(Arc::new(inner)),
+                        ctx: Arc::new(ctx),
+                        accept_compression_encodings: Default::default(),
+                        send_compression_encodings: Default::default(),
+                        max_decoding_message_size: None,
+                        max_encoding_message_size: None,
+                    }
+                }
+
                 fn new_impl(inner: T) -> Self {
                     Self::from_arc_impl(Arc::new(inner))
                 }

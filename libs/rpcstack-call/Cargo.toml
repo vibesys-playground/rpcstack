@@ -1,0 +1,12 @@
+[package]
+name = "rpcstack-call"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+tonic = { path = "../tonic/tonic", default-features = false, features = ["transport"] }
+tokio = { path = "../tokio/tokio", features = ["rt", "time", "sync"] }
+
+[dev-dependencies]
+tokio = { path = "../tokio/tokio", features = ["macros", "rt", "time", "sync", "test-util"] }

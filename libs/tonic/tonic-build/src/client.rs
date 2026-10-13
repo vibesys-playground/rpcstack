@@ -136,6 +136,11 @@ pub(crate) fn generate_internal<T: Service>(
                 <T::ResponseBody as Body>::Error: Into<StdError> + Send,
                 M: tonic::rpcstack::Hooks
             {
+                /// Reuse an existing transport with an explicitly selected hook stack.
+                pub fn with_custom_context(inner: T) -> Self {
+                    Self::new_impl(inner)
+                }
+
                 fn new_impl(inner: T) -> Self {
                     let inner = tonic::client::Grpc::new(inner);
                     Self {

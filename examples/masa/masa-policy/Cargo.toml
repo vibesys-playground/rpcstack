@@ -1,0 +1,47 @@
+[package]
+name = "masa-policy"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+rpcstack-wire = { path = "../../../libs/rpcstack-wire" }
+masa-core = { path = "../masa-core" }
+rpcstack = { path = "../../../libs/rpcstack" }
+rpcstack-tonic = { path = "../../../libs/rpcstack-tonic" }
+rajomon = { path = "../../policies/rajomon", optional = true }
+tonic = { path = "../../../libs/tonic/tonic", default-features = false, features = ["transport"] }
+tokio = { path = "../../../libs/tokio/tokio", optional = true, features = ["rt"] }
+dashmap = "5.5"
+once_cell = "1.20"
+log = "0.4"
+http = "0.2"
+rand = "0.8"
+rand_distr = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+masa-core = { path = "../masa-core", features = ["test_clock"] }
+tokio = { path = "../../../libs/tokio/tokio", features = ["rt", "macros"] }
+
+[features]
+default = []
+masa = []
+trace_queue_latency = ["tokio", "masa-core/trace_queue_latency"]
+sched_slo = ["masa", "masa-core/sched_slo"]
+sched_tailclipper = ["masa", "masa-core/sched_tailclipper"]
+sched_fifo = ["masa", "masa-core/sched_fifo"]
+sched_oracle = ["masa", "masa-core/sched_oracle"]
+abort_slo = ["masa", "masa-core/abort_slo"]
+abort_slack = ["masa", "estimator", "masa-core/abort_slack"]
+signal_slack = ["masa", "estimator", "ac_pred", "masa-core/signal_slack"]
+estimator = ["masa-core/estimator", "tokio"]
+sched_pred = ["estimator", "sched_slo", "masa-core/sched_pred"]
+ac_pred = ["estimator", "masa-core/ac_pred"]
+ac_rajomon = ["masa", "masa-core/ac_rajomon", "tokio", "dep:rajomon"]
+est_rms = []
+est_hist = []
+est_mean_var = []
+deadline_equals_slack = ["sched_pred"]
+stack_custom = ["masa"]

@@ -76,7 +76,12 @@ async fn serve(service: Echo) -> (String, tokio::task::JoinHandle<()>) {
     let address = format!("http://{}", listener.local_addr().unwrap());
     let handle = tokio::spawn(async move {
         tonic::transport::Server::builder()
-            .add_service(pb::echo_server::EchoServer::new(service))
+            .add_service(
+                pb::echo_server::EchoServer::<_, ExampleHooks>::with_server_context(
+                    service,
+                    rpcstack_tonic::ServerContext::try_with_resources("echo.Echo", |_| {}).unwrap(),
+                ),
+            )
             .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener))
             .await
             .unwrap();

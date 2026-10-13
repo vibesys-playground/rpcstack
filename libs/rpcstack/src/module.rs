@@ -221,8 +221,19 @@ impl ModuleDecl {
 pub fn build_server<S: ModuleStack>(
     service_name: &'static str,
 ) -> Result<S::Server, MissingDependency> {
+    build_server_with::<S>(service_name, |_| {})
+}
+
+/// Construct a stack with application-provided, typed server resources.
+/// Validation and module construction order are identical to `build_server`.
+pub fn build_server_with<S: ModuleStack>(
+    service_name: &'static str,
+    configure: impl FnOnce(&mut ServerInit),
+) -> Result<S::Server, MissingDependency> {
     validate_stack::<S>()?;
-    S::Server::new(&mut ServerInit::new(service_name))
+    let mut init = ServerInit::new(service_name);
+    configure(&mut init);
+    S::Server::new(&mut init)
 }
 
 /// Fails unless every module of the stack `S` is preceded by the modules it

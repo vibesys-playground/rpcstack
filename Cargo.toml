@@ -1,6 +1,15 @@
 [workspace]
 resolver = "2"
 members = [
+  "examples/policy-composition",
+  "examples/masa/masa", "examples/masa/masa-core", "examples/masa/masa-policy", "examples/masa/masa-semantics",
+  "examples/policies/rajomon", "examples/policies/tailclipper", "examples/paper-rpc",
+  "examples/policies/aequitas",
+  "examples/policies/c3",
+  "examples/policies/hedged",
+  "examples/policies/breakwater",
+  "examples/policies/dagor", "examples/testkit",
+  "libs/rpcstack-call",
   "examples/echo",
   "libs/rpcstack", "libs/rpcstack-wire", "libs/rpcstack-tonic", "libs/rpcstack-sched",
   "libs/tonic/tonic", "libs/tonic/tonic-build", "libs/hyper", "libs/tokio/tokio",

@@ -85,6 +85,15 @@ impl<S: ModuleStack> ServerContext<S> {
             modules: build_server::<S>(service_name)?,
         })
     }
+    /// Supply explicit server-local resources without process-global state.
+    pub fn try_with_resources(
+        service_name: &'static str,
+        configure: impl FnOnce(&mut rpcstack::ServerInit),
+    ) -> Result<Self, MissingDependency> {
+        Ok(Self {
+            modules: rpcstack::build_server_with::<S>(service_name, configure)?,
+        })
+    }
 }
 
 impl<S: ModuleStack> ServerHooks for ServerContext<S> {
