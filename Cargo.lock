@@ -1819,6 +1819,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "rpcstack-c3"
+version = "0.1.0"
+dependencies = [
+ "rand 0.8.8",
+ "rpcstack",
+ "rpcstack-call",
+ "rpcstack-testkit",
+ "rpcstack-tonic",
+ "serde",
+ "tokio",
+ "tonic",
+]
+
+[[package]]
 name = "rpcstack-call"
 version = "0.1.0"
 dependencies = [
@@ -1874,6 +1888,7 @@ version = "0.1.0"
 dependencies = [
  "prost",
  "rpcstack",
+ "rpcstack-call",
  "rpcstack-tonic",
  "tokio",
  "tokio-stream",

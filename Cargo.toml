@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+  "examples/policies/c3",
   "examples/policies/hedged",
   "examples/policies/breakwater",
   "examples/policies/dagor", "examples/testkit",

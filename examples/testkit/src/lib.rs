@@ -14,6 +14,7 @@ pub mod pb {
 pub type Client<S> =
     pb::probe_client::ProbeClient<tonic::transport::Channel, rpcstack_tonic::PolicyHooks<S>>;
 struct Probe<H: Hooks> {
+    stage: Option<rpcstack_call::Stage>,
     downstream: Option<tonic::transport::Channel>,
     calls: Arc<AtomicUsize>,
     marker: PhantomData<H>,
@@ -24,6 +25,22 @@ where
     H::ChildContext: Send,
 {
     async fn call(&self, request: Request<pb::Input>) -> Result<Response<pb::Output>, Status> {
+        if let Some(stage) = &self.stage {
+            let (mut result, sample) = stage.run(self.handle(request)).await;
+            if let Ok(response) = &mut result {
+                response.extensions_mut().insert(sample);
+            }
+            result
+        } else {
+            self.handle(request).await
+        }
+    }
+}
+impl<H: Hooks> Probe<H>
+where
+    H::ChildContext: Send,
+{
+    async fn handle(&self, request: Request<pb::Input>) -> Result<Response<pb::Output>, Status> {
         self.calls.fetch_add(1, Ordering::Relaxed);
         tokio::time::sleep(std::time::Duration::from_millis(request.get_ref().delay_ms)).await;
         if request.get_ref().fail {
@@ -56,11 +73,19 @@ pub async fn serve<S: rpcstack::ModuleStack>(
     context: rpcstack_tonic::ServerContext<S>,
     downstream: Option<tonic::transport::Channel>,
 ) -> Running {
+    serve_with_stage(context, downstream, None).await
+}
+pub async fn serve_with_stage<S: rpcstack::ModuleStack>(
+    context: rpcstack_tonic::ServerContext<S>,
+    downstream: Option<tonic::transport::Channel>,
+    stage: Option<rpcstack_call::Stage>,
+) -> Running {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = format!("http://{}", listener.local_addr().unwrap());
     let calls = Arc::new(AtomicUsize::new(0));
     let service = Probe::<rpcstack_tonic::PolicyHooks<S>> {
         downstream,
+        stage,
         calls: calls.clone(),
         marker: PhantomData,
     };
