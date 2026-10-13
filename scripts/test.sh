@@ -26,3 +26,4 @@ cargo test --locked -p rpcstack-aequitas
 cargo test --locked -p rpcstack-policy-composition
 cargo test --locked -p rpcstack-protego
 cargo test --locked -p rpcstack-persephone
+cargo test --locked -p rpcstack-r2p2

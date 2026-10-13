@@ -93,3 +93,7 @@ and the substrate capabilities that these tests do not establish.
   [implementation](../examples/policies/persephone), typed reservations, short-to-long
   cycle stealing, spillway service, and runtime profiling. Enforces asynchronous
   handler-slot scheduling, not dedicated CPU-core isolation or kernel bypass.
+- [R2P2, USENIX ATC 2019](https://www.usenix.org/system/files/atc19-kogias-r2p2_0.pdf):
+  [implementation](../examples/policies/r2p2), centralized JBSQ(n) RPC dispatch
+  with bounded backend queues and completion accounting. Uses gRPC forwarding;
+  does not implement R2P2's UDP packet format, direct replies, or P4 offload.

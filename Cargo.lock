@@ -2023,6 +2023,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "rpcstack-r2p2"
+version = "0.1.0"
+dependencies = [
+ "rpcstack-call",
+ "rpcstack-testkit",
+ "rpcstack-tonic",
+ "tokio",
+ "tonic",
+]
+
+[[package]]
 name = "rpcstack-sched"
 version = "0.1.0"
 
