@@ -32,3 +32,54 @@ These examples were ported from the earlier implementations at
 https://github.com/vic-lsh/masa/pull/104, with framework dependencies redirected here.
 The queue correction is a mechanism fix: vacancies must admit waiting runnable tasks
 without waiting for an entire old round-robin batch to drain.
+
+## Five additional published policies
+
+| Paper | Implementation and inspected code | Implemented scope | Fidelity limit |
+| --- | --- | --- | --- |
+| [DAGOR, SoCC 2018](https://www.cs.columbia.edu/~junfeng/papers/dagor-socc18.pdf) | [Example](../examples/policies/dagor); paper Algorithm 1 (unofficial gRPC ports were not treated as authoritative) | Business/user admission thresholds, overload windows, collaborative rejection feedback and propagation | Tokio first-poll queue signal; configured replica/cache scope; demand-driven windows |
+| [Breakwater, OSDI 2020](https://inhocho89.github.io/papers/osdi20overload.pdf) | [Example](../examples/policies/breakwater); [author code](https://github.com/shenango/caladan/tree/main/breakwater) | Credit growth/decrease, demand/speculative grants, zero-credit control stream, delay AQM, revocation, deadlines and disconnect-safe accounting | Sampled runnable delay rather than Shenango packet/thread oldest-age sum; millisecond timer and adapted distribution |
+| [C3, NSDI 2015](https://www.usenix.org/system/files/conference/nsdi15/nsdi15-paper-suresh.pdf) | [Example](../examples/policies/c3); [author simulator](https://github.com/lalithsuresh/absim) | Replica score, pending compensation, service/queue feedback, pacing, cubic rate control and shadow reads | Explicit service-stage measurement, configured client count; no Cassandra quorum system |
+| [The Tail at Scale, CACM 2013](https://www.barroso.org/publications/TheTailAtScale.pdf) | [Example](../examples/policies/hedged); [author publication page](https://research.google/pubs/the-tail-at-scale/) (no linked author code found) | Delayed hedged requests, bounded backup concurrency, replay-safety contract, p95 estimator, owned losing-attempt cancellation | Implements hedging, not tied requests or guaranteed remote rollback |
+| [Aequitas, SIGCOMM 2022](https://yiwenzhang92.github.io/assets/docs/aequitas-sigcomm22.pdf) | [Example](../examples/policies/aequitas); [author simulator](https://github.com/SymbioticLab/Aequitas) | Literal admission/downgrade controller, typed QoS/RNL adapter boundary, measured-completion replay | **Incomplete network deployment:** stock Tonic lacks packet WFQ, per-RPC QoS and final-ACK RNL; production adapter still required |
+
+Example READMEs record source revisions, equations/algorithm sections, adaptations,
+integration instructions and focused tests. These are policy implementations and
+functional tests, not reproductions of published throughput or latency figures.
+No new hotel-reservation, train-ticket or social-network experiment was run here.
+
+[Masa](../examples/masa) is an additional optional composition reference, porting
+the actual budget/guard/estimation/admission modules and semantic tests. It is not
+counted as one of the five additional papers, and the framework does not depend on it.
+
+## Review and test the full corpus
+
+The `review/policy-corpus` branch combines the unmerged review branches so all
+examples can be built and tested together. `main` remains unchanged. Individual
+PRs keep changes separately reviewable:
+
+- [#1 Rajomon + cooperative TailClipper](https://github.com/vibesys-playground/rpcstack/pull/1), based on main.
+- [#2 generic async calls/resources](https://github.com/vibesys-playground/rpcstack/pull/2), based on main.
+- [#3 DAGOR](https://github.com/vibesys-playground/rpcstack/pull/3) → [#4 Breakwater](https://github.com/vibesys-playground/rpcstack/pull/4) → [#5 hedging](https://github.com/vibesys-playground/rpcstack/pull/5) → [#6 C3](https://github.com/vibesys-playground/rpcstack/pull/6) → [#7 Aequitas](https://github.com/vibesys-playground/rpcstack/pull/7) stack on #2.
+- [#8 Breakwater disconnect fix](https://github.com/vibesys-playground/rpcstack/pull/8) follows #7 and should be reviewed with #4.
+- [#9 Masa example](https://github.com/vibesys-playground/rpcstack/pull/9) stacks on #1.
+- [#10 external-consumer compatibility](https://github.com/vibesys-playground/rpcstack/pull/10) follows #8 and prevents a second incompatible Tokio.
+
+The chain is for cumulative validation/review; DAGOR, Breakwater, C3, hedging and
+Aequitas do not depend on each other's algorithms. Framework extensions, test
+fixtures and Cargo manifests are shared. Reviewers can merge in dependency order
+and retarget remaining PR bases. Nothing is auto-merged.
+
+```sh
+./scripts/test.sh
+./scripts/check.sh
+cargo test -p rpcstack-policy-composition
+cargo run -p paper-rpc --features orf
+```
+
+The composition test exercises DAGOR, Breakwater and C3 together through generated
+gRPC stubs, independent request/response wire sections, nested async tickets,
+local rejection and recovery. The external-workspace test deliberately starts
+without this repository's lockfile and checks that only the vendored Tokio resolves.
+See [the VibeSys implementation guide](VIBESYS.md) for extension-point selection
+and the substrate capabilities that these tests do not establish.

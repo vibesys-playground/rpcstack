@@ -16,3 +16,11 @@ cargo test --locked -p masa -p masa-core -p masa-policy -p masa-semantics
 cargo test --locked -p masa-policy --features sched_slo,abort_slo,signal_slack,est_mean_var,ac_pred,trace_queue_latency
 cargo test --locked -p masa-semantics --features sched_slo,abort_slo,signal_slack,est_mean_var,ac_pred
 cargo test --locked -p masa-policy --features sched_fifo,ac_rajomon
+cargo test --locked -p rpcstack-call
+cargo test --locked -p rpcstack-dagor
+cargo test --locked -p rpcstack-breakwater
+cargo test --locked -p rpcstack-hedged
+cargo test --locked -p rpcstack-c3
+cargo test --locked -p rpcstack-aequitas
+./scripts/test_external_workspace.sh
+cargo test --locked -p rpcstack-policy-composition

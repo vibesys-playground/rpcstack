@@ -20,6 +20,9 @@ include = [
 ]
 
 [dependencies]
+# Keep external consumers on the same Tokio API as this runtime fork. A dev-only
+# pin protects our workspace lockfile but not downstream dependency resolution.
+tokio-util = { version = "=0.7.11", default-features = false }
 bytes = "1"
 futures-core = { version = "0.3", default-features = false }
 futures-channel = "0.3"

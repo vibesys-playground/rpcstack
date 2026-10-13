@@ -13,10 +13,11 @@ examples. Default workspace members remain the four generic framework crates.
 
 Use `masa::DefaultHooks` explicitly in generated stubs and enable a scheduling
 feature, e.g. `sched_slo,abort_slo,signal_slack,est_mean_var,ac_pred`. The inherited
-DefaultHooks selection is tied to scheduling features; enabling admission alone
-does not select hooks automatically. A separate application must patch Tokio and
+DefaultHooks selection is tied to scheduling features; admission features also
+require a scheduling feature at compile time. A separate application must patch Tokio and
 Hyper as described in the repository README. `MASA_POLICY_PARAMS_PATH` remains
 Masa's own example configuration; the generic framework does not read it.
+The separately ported Rajomon crate uses `RPCSTACK_POLICY_PARAMS_PATH`.
 
 Port changes:
 

@@ -1891,6 +1891,69 @@ dependencies = [
 ]
 
 [[package]]
+name = "rpcstack-aequitas"
+version = "0.1.0"
+dependencies = [
+ "rand 0.8.8",
+ "rpcstack-call",
+ "tokio",
+ "tonic",
+]
+
+[[package]]
+name = "rpcstack-breakwater"
+version = "0.1.0"
+dependencies = [
+ "async-stream",
+ "futures-core",
+ "prost",
+ "rand 0.8.8",
+ "rpcstack",
+ "rpcstack-call",
+ "rpcstack-testkit",
+ "rpcstack-tonic",
+ "serde",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tonic-build",
+]
+
+[[package]]
+name = "rpcstack-c3"
+version = "0.1.0"
+dependencies = [
+ "rand 0.8.8",
+ "rpcstack",
+ "rpcstack-call",
+ "rpcstack-testkit",
+ "rpcstack-tonic",
+ "serde",
+ "tokio",
+ "tonic",
+]
+
+[[package]]
+name = "rpcstack-call"
+version = "0.1.0"
+dependencies = [
+ "tokio",
+ "tonic",
+]
+
+[[package]]
+name = "rpcstack-dagor"
+version = "0.1.0"
+dependencies = [
+ "rpcstack",
+ "rpcstack-testkit",
+ "rpcstack-tonic",
+ "serde",
+ "tokio",
+ "tonic",
+]
+
+[[package]]
 name = "rpcstack-echo"
 version = "0.1.0"
 dependencies = [
@@ -1905,8 +1968,52 @@ dependencies = [
 ]
 
 [[package]]
+name = "rpcstack-hedged"
+version = "0.1.0"
+dependencies = [
+ "rpcstack",
+ "rpcstack-call",
+ "rpcstack-testkit",
+ "rpcstack-tonic",
+ "tokio",
+ "tonic",
+]
+
+[[package]]
+name = "rpcstack-policy-composition"
+version = "0.1.0"
+dependencies = [
+ "masa-core",
+ "masa-policy",
+ "rpcstack",
+ "rpcstack-breakwater",
+ "rpcstack-c3",
+ "rpcstack-call",
+ "rpcstack-dagor",
+ "rpcstack-testkit",
+ "rpcstack-tonic",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+]
+
+[[package]]
 name = "rpcstack-sched"
 version = "0.1.0"
+
+[[package]]
+name = "rpcstack-testkit"
+version = "0.1.0"
+dependencies = [
+ "prost",
+ "rpcstack",
+ "rpcstack-call",
+ "rpcstack-tonic",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tonic-build",
+]
 
 [[package]]
 name = "rpcstack-tonic"

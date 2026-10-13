@@ -7,8 +7,14 @@ import subprocess
 root = Path(__file__).resolve().parents[1]
 metadata = json.loads(subprocess.check_output(
     ["cargo", "metadata", "--locked", "--format-version", "1"], cwd=root))
-allowed = {"masa", "masa-core", "masa-policy", "masa-semantics","rpcstack", "rpcstack-wire", "rpcstack-tonic", "rpcstack-sched",
-           "tonic", "tonic-build", "hyper", "tokio", "multiqueue-prio-queue", "rpcstack-echo", "rajomon", "tailclipper", "paper-rpc"}
+allowed = {
+    "rpcstack", "rpcstack-wire", "rpcstack-tonic", "rpcstack-sched", "rpcstack-call",
+    "tonic", "tonic-build", "hyper", "tokio", "multiqueue-prio-queue",
+    "rpcstack-echo", "rajomon", "tailclipper", "paper-rpc",
+    "masa", "masa-core", "masa-policy", "masa-semantics",
+    "rpcstack-dagor", "rpcstack-breakwater", "rpcstack-hedged", "rpcstack-c3",
+    "rpcstack-aequitas", "rpcstack-testkit", "rpcstack-policy-composition",
+}
 for package in metadata["packages"]:
     if package["name"].startswith("masa"):
         assert Path(package["manifest_path"]).is_relative_to(root / "examples" / "masa"), package["name"]

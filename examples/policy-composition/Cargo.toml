@@ -1,0 +1,18 @@
+[package]
+name = "rpcstack-policy-composition"
+version = "0.1.0"
+edition = "2021"
+publish = false
+[dev-dependencies]
+rpcstack = { path = "../../libs/rpcstack" }
+rpcstack-call = { path = "../../libs/rpcstack-call" }
+rpcstack-tonic = { path = "../../libs/rpcstack-tonic" }
+rpcstack-testkit = { path = "../testkit" }
+rpcstack-dagor = { path = "../policies/dagor" }
+rpcstack-breakwater = { path = "../policies/breakwater" }
+rpcstack-c3 = { path = "../policies/c3" }
+tonic = { path = "../../libs/tonic/tonic" }
+tokio = { path = "../../libs/tokio/tokio", features = ["macros", "rt", "net", "time"] }
+tokio-stream = { version = "=0.1.15", features = ["net"] }
+masa-policy = { path = "../masa/masa-policy" }
+masa-core = { path = "../masa/masa-core" }

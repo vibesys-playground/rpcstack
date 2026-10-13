@@ -11,6 +11,8 @@ wire metadata. Applications choose their module stack explicitly.
 | `libs/rpcstack` | Module lifecycle, composition, typed state and decision points |
 | `libs/rpcstack-wire` | Independent header-section codec and opaque scheduling header |
 | `libs/rpcstack-tonic` | Runs a module stack through Tonic's request hooks |
+| `libs/rpcstack-call` | Async preparation, attempt lifetimes, bounded stage measurements |
+| `libs/rpcstack-call` | Async admission/pacing tickets, owned attempts, deadlines and measured service stages |
 | `libs/rpcstack-sched` | Task metadata, queue interface, built-in queues, custom queue slot |
 | `libs/tonic`, `libs/hyper`, `libs/tokio` | Vendored runtime/transport support for these mechanisms |
 | `libs/multiqueue-prio-queue` | Optional concurrent queue backend |
@@ -20,6 +22,9 @@ Optional paper policies live under `examples/policies`; the framework never depe
 on them. See [paper implementations](docs/PAPERS.md) for scope and fidelity.
 The optional [Masa composition example](examples/masa/README.md) ports the original
 policy stack and semantic tests without adding a framework dependency.
+The [VibeSys implementation guide](docs/VIBESYS.md) maps policy requirements to
+extension points, test evidence and remaining substrate gaps. The unmerged
+`review/policy-corpus` branch collects all examples for evaluation.
 The built-in queue implementations remain part of the scheduling framework; none
 selects an RPC policy automatically.
 
@@ -75,6 +80,11 @@ are cooperative; they cannot preempt arbitrary Rust code inside a future's poll.
 For a separate application workspace, use the vendored Tonic and code generator as
 path dependencies, and add `[patch.crates-io]` entries for the vendored Tokio and
 Hyper, as this workspace does. Patches in dependency workspaces do not propagate.
+The vendored Hyper constrains `tokio-util` to the runtime-compatible 0.7.11;
+when migrating an existing application, refresh its lockfile after applying
+the patches (the fresh-workspace fixture uses `cargo generate-lockfile` semantics)
+and verify `cargo tree -d` contains no second Tokio. CI also builds a fresh external workspace to
+catch dependency resolution that the repository lockfile would otherwise hide.
 
 ## Validation
 
@@ -85,3 +95,9 @@ denied across the scheduling configurations. Upstream runtime test suites are
 retained but are not claimed to be exhaustively validated by these scripts.
 
 Source attribution and extraction details are in [SOURCE.md](SOURCE.md).
+
+Server-local controllers can be injected with
+`ServerContext::try_with_resources` and generated `with_server_context` constructors.
+For asynchronous admission, pacing, or replica attempts, see
+[`rpcstack-call`](libs/rpcstack-call/README.md). These mechanisms do not prescribe
+any admission or routing policy.
