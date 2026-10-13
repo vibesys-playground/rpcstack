@@ -1,0 +1,42 @@
+[package]
+name = "masa"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+tower = { version = "0.4", features = ["buffer", "util"] }
+masa-core = { path = "../masa-core" }
+masa-policy = { path = "../masa-policy" }
+hyper = { path = "../../../libs/hyper" }
+tokio = { path = "../../../libs/tokio/tokio", features = ["time", "rt"] }
+tonic = { path = "../../../libs/tonic/tonic" }
+
+
+[features]
+sched_slo = ["hyper/rpcstack", "tonic/rpcstack", "masa-core/sched_slo", "tokio/sched_prio", "masa-policy/sched_slo"]
+sched_mt = ["sched_slo", "tokio/sched_mt"]
+sched_mt_multiqueue = ["sched_mt", "tokio/sched_mt_multiqueue"]
+sched_tailclipper = ["hyper/rpcstack", "tonic/rpcstack", "masa-core/sched_tailclipper", "tokio/sched_prio", "tokio/tailclipper", "masa-policy/sched_tailclipper"]
+sched_fifo  = ["hyper/rpcstack", "tonic/rpcstack", "masa-core/sched_fifo",  "tokio/sched_fifo", "masa-policy/sched_fifo"]
+sched_oracle = ["hyper/rpcstack", "tonic/rpcstack", "masa-core/sched_oracle", "tokio/sched_prio", "masa-policy/sched_oracle"]
+sched_pred = ["masa-core/sched_pred", "sched_slo", "masa-policy/sched_pred"]
+
+abort_slo = ["hyper/rpcstack", "tonic/rpcstack", "masa-core/abort_slo", "masa-policy/abort_slo"]
+abort_slack = ["hyper/rpcstack", "tonic/rpcstack", "estimator", "masa-core/abort_slack", "masa-policy/abort_slack"]
+signal_slack = ["hyper/rpcstack", "tonic/rpcstack", "estimator", "ac_pred", "masa-core/signal_slack", "masa-policy/signal_slack"]
+estimator = ["masa-core/estimator", "masa-policy/estimator"]
+
+est_rms = ["masa-policy/est_rms"]
+est_hist = ["masa-policy/est_hist"]
+est_mean_var = ["masa-policy/est_mean_var"]
+deadline_equals_slack = ["sched_pred", "masa-policy/deadline_equals_slack"]
+stack_custom = ["hyper/rpcstack", "tonic/rpcstack", "masa-policy/stack_custom"]
+sched_custom = ["hyper/rpcstack", "tonic/rpcstack", "tokio/sched_custom"]
+
+ac_pred = ["hyper/rpcstack", "tonic/rpcstack", "masa-core/ac_pred", "masa-policy/ac_pred"]
+ac_rajomon = ["hyper/rpcstack", "tonic/rpcstack", "masa-core/ac_rajomon", "masa-policy/ac_rajomon"]
+trace_queue_latency = ["hyper/rpcstack", "tonic/rpcstack", "masa-core/trace_queue_latency", "masa-policy/trace_queue_latency"]
+
+[dev-dependencies]
+tokio = { path = "../../../libs/tokio/tokio", features = ["macros", "rt"] }

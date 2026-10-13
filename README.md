@@ -18,6 +18,8 @@ wire metadata. Applications choose their module stack explicitly.
 
 Optional paper policies live under `examples/policies`; the framework never depends
 on them. See [paper implementations](docs/PAPERS.md) for scope and fidelity.
+The optional [Masa composition example](examples/masa/README.md) ports the original
+policy stack and semantic tests without adding a framework dependency.
 The built-in queue implementations remain part of the scheduling framework; none
 selects an RPC policy automatically.
 
