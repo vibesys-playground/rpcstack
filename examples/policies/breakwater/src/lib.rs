@@ -42,6 +42,8 @@ impl Default for Config {
 }
 #[derive(Debug)]
 struct Peer {
+    connected: bool,
+    incarnation: u64,
     demand: u64,
     inflight: u64,
     window: u64,
@@ -51,6 +53,7 @@ struct Peer {
 #[derive(Debug)]
 struct State {
     total: u64,
+    next_incarnation: u64,
     peers: BTreeMap<u64, Peer>,
 }
 #[derive(Debug)]
@@ -73,6 +76,7 @@ impl Controller {
         Arc::new(Self {
             state: Mutex::new(State {
                 total: config.initial,
+                next_incarnation: 1,
                 peers: BTreeMap::new(),
             }),
             config,
@@ -92,7 +96,7 @@ impl Controller {
     pub fn tick(&self) {
         let queue = self.queue_us.swap(0, Ordering::Relaxed) as f64;
         let mut s = self.state.lock().unwrap();
-        let n = s.peers.len() as f64;
+        let n = s.peers.values().filter(|p| p.connected).count() as f64;
         let target = self.config.target.as_secs_f64() * 1e6;
         s.total = if queue < target {
             s.total
@@ -112,7 +116,12 @@ impl Controller {
         let mut remaining = s.total.saturating_sub(used);
         // Give demand priority, then speculative credits. Rotate order to avoid
         // persistent bias; prefer a responding peer for piggyback delivery.
-        let mut ids: Vec<_> = s.peers.keys().copied().collect();
+        let mut ids: Vec<_> = s
+            .peers
+            .iter()
+            .filter(|(_, p)| p.connected)
+            .map(|(id, _)| *id)
+            .collect();
         use rand::seq::SliceRandom;
         ids.shuffle(&mut rand::thread_rng());
         if let Some(id) = preferred {
@@ -137,6 +146,7 @@ impl Controller {
             if old[id] != p.window {
                 p.generation = p.generation.saturating_add(1);
                 p.updates.send_replace(pb::Grant {
+                    incarnation: p.incarnation,
                     generation: p.generation,
                     window: p.window,
                 });
@@ -148,13 +158,20 @@ impl Controller {
         if s.peers.contains_key(&id) {
             return Err(Status::already_exists("client already connected"));
         }
+        let incarnation = s.next_incarnation;
+        s.next_incarnation = incarnation
+            .checked_add(1)
+            .ok_or_else(|| Status::resource_exhausted("subscription identities exhausted"))?;
         let (tx, rx) = tokio::sync::watch::channel(pb::Grant {
+            incarnation,
             generation: 0,
             window: 0,
         });
         s.peers.insert(
             id,
             Peer {
+                incarnation,
+                connected: true,
                 demand: 0,
                 inflight: 0,
                 window: 0,
@@ -169,12 +186,15 @@ impl Controller {
             receiver: rx,
         })
     }
-    fn enter(&self, id: u64, demand: u64) -> Result<(), Status> {
+    fn enter(&self, id: u64, incarnation: u64, demand: u64) -> Result<(), Status> {
         let mut s = self.state.lock().unwrap();
         let p = s
             .peers
             .get_mut(&id)
             .ok_or_else(|| Status::failed_precondition("open credit subscription first"))?;
+        if !p.connected || p.incarnation != incarnation {
+            return Err(Status::failed_precondition("stale credit subscription"));
+        }
         p.demand = demand;
         if p.inflight >= p.window {
             return Err(Status::resource_exhausted("no server credit"));
@@ -182,12 +202,22 @@ impl Controller {
         p.inflight += 1;
         Ok(())
     }
-    fn finish(&self, id: u64) -> Option<pb::Grant> {
+    fn finish(&self, id: u64, incarnation: u64) -> Option<pb::Grant> {
         let mut s = self.state.lock().unwrap();
-        s.peers.get_mut(&id)?.inflight = s.peers.get(&id)?.inflight.saturating_sub(1);
+        let p = s.peers.get_mut(&id)?;
+        if p.incarnation != incarnation {
+            return None;
+        }
+        p.inflight = p.inflight.saturating_sub(1);
+        if !p.connected && p.inflight == 0 {
+            s.peers.remove(&id);
+            Self::allocate(&mut s, None);
+            return None;
+        }
         Self::allocate(&mut s, Some(id));
         let p = s.peers.get(&id)?;
         Some(pb::Grant {
+            incarnation: p.incarnation,
             generation: p.generation,
             window: p.window,
         })
@@ -215,7 +245,12 @@ struct Subscription {
 impl Drop for Subscription {
     fn drop(&mut self) {
         let mut s = self.controller.state.lock().unwrap();
-        s.peers.remove(&self.id);
+        if let Some(p) = s.peers.get_mut(&self.id) {
+            p.connected = false;
+            if p.inflight == 0 {
+                s.peers.remove(&self.id);
+            }
+        }
         Controller::allocate(&mut s, None);
     }
 }
@@ -240,8 +275,16 @@ impl pb::credits_server::Credits for CreditService {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum CreditWire {
-    Request { client: u64, demand: u64 },
-    Grant { generation: u64, window: u64 },
+    Request {
+        client: u64,
+        incarnation: u64,
+        demand: u64,
+    },
+    Grant {
+        generation: u64,
+        window: u64,
+        incarnation: u64,
+    },
 }
 #[derive(Clone, Debug)]
 pub struct BreakwaterServer(pub Arc<Controller>);
@@ -253,15 +296,15 @@ impl ModuleServer for BreakwaterServer {
 #[derive(Debug)]
 pub struct BreakwaterModule {
     server: Arc<Controller>,
-    client: Result<(u64, u64), Status>,
+    client: Result<(u64, u64, u64), Status>,
     entered: AtomicBool,
     first: AtomicBool,
 }
 impl Drop for BreakwaterModule {
     fn drop(&mut self) {
         if self.entered.swap(false, Ordering::Relaxed) {
-            if let Ok((id, _)) = self.client {
-                self.server.finish(id);
+            if let Ok((id, incarnation, _)) = self.client {
+                self.server.finish(id, incarnation);
             }
         }
     }
@@ -277,7 +320,11 @@ impl Module for BreakwaterModule {
         _: &mut Extensions,
     ) -> Self {
         let client = match wire.get::<Self>() {
-            Ok(Some(CreditWire::Request { client, demand })) => Ok((client, demand)),
+            Ok(Some(CreditWire::Request {
+                client,
+                incarnation,
+                demand,
+            })) => Ok((client, incarnation, demand)),
             _ => Err(Status::invalid_argument("missing credit client identity")),
         };
         Self {
@@ -288,14 +335,14 @@ impl Module for BreakwaterModule {
         }
     }
     fn before_poll<T>(&self, _: &mut Extensions) -> Result<(), Result<Response<T>, Status>> {
-        let (id, demand) = self.client.clone().map_err(Err)?;
+        let (id, incarnation, demand) = self.client.clone().map_err(Err)?;
         if self.first.swap(false, Ordering::Relaxed) {
             let delay = tokio::task::obtain_task_queue_latency();
             self.server.observe_queue(delay);
             if delay >= self.server.config.aqm {
                 return Err(Err(Status::resource_exhausted("Breakwater delay AQM")));
             }
-            self.server.enter(id, demand).map_err(Err)?;
+            self.server.enter(id, incarnation, demand).map_err(Err)?;
             self.entered.store(true, Ordering::Relaxed);
         }
         Ok(())
@@ -308,9 +355,10 @@ impl Module for BreakwaterModule {
         _: &Extensions,
     ) {
         if self.entered.swap(false, Ordering::Relaxed) {
-            if let Ok((id, _)) = self.client {
-                if let Some(g) = self.server.finish(id) {
+            if let Ok((id, incarnation, _)) = self.client {
+                if let Some(g) = self.server.finish(id, incarnation) {
                     wire.put::<Self>(&CreditWire::Grant {
+                        incarnation: g.incarnation,
                         generation: g.generation,
                         window: g.window,
                     })
@@ -331,7 +379,9 @@ struct ClientState {
 impl ClientState {
     fn update(&self, g: pb::Grant) {
         let mut current = self.grant.lock().unwrap();
-        if g.generation >= current.generation {
+        if (current.incarnation == 0 || current.incarnation == g.incarnation)
+            && g.generation >= current.generation
+        {
             *current = g;
             self.notify.notify_waiters();
         }
@@ -360,6 +410,7 @@ impl CreditClient {
             .into_inner();
         let state = Arc::new(ClientState {
             grant: Mutex::new(pb::Grant {
+                incarnation: 0,
                 generation: 0,
                 window: 0,
             }),
@@ -404,6 +455,7 @@ impl Ticket for CreditTicket {
             .map_err(|e| Status::invalid_argument(e.to_string()))?;
         wire.put::<BreakwaterModule>(&CreditWire::Request {
             client: self.client.id,
+            incarnation: self.client.state.grant.lock().unwrap().incarnation,
             demand: self.client.state.waiting.load(Ordering::Relaxed) as u64,
         })
         .map_err(|e| Status::internal(e.to_string()))?;
@@ -416,10 +468,17 @@ impl Ticket for CreditTicket {
             Err(s) => s.metadata(),
         };
         if let Ok(wire) = WireIn::from_metadata(md) {
-            if let Ok(Some(CreditWire::Grant { generation, window })) =
-                wire.get::<BreakwaterModule>()
+            if let Ok(Some(CreditWire::Grant {
+                generation,
+                window,
+                incarnation,
+            })) = wire.get::<BreakwaterModule>()
             {
-                self.client.state.update(pb::Grant { generation, window });
+                self.client.state.update(pb::Grant {
+                    generation,
+                    window,
+                    incarnation,
+                });
             }
         }
     }
@@ -493,15 +552,16 @@ mod tests {
             ..Config::default()
         });
         let _subscription = c.register(1).unwrap();
-        assert!(c.enter(1, 0).is_ok());
-        assert!(c.enter(1, 0).is_err());
+        assert!(c.enter(1, 1, 0).is_ok());
+        assert!(c.enter(1, 1, 0).is_err());
         c.observe_queue(Duration::from_secs(1));
         c.tick();
         assert_eq!(c.state.lock().unwrap().peers[&1].inflight, 1);
-        c.finish(1);
-        assert!(c.enter(1, 0).is_ok());
+        c.finish(1, 1);
+        assert!(c.enter(1, 1, 0).is_ok());
         let state = ClientState {
             grant: Mutex::new(pb::Grant {
+                incarnation: 0,
                 generation: 2,
                 window: 1,
             }),
@@ -511,9 +571,40 @@ mod tests {
             closed: false.into(),
         };
         state.update(pb::Grant {
+            incarnation: 0,
             generation: 1,
             window: 100,
         });
         assert_eq!(state.grant.lock().unwrap().window, 1);
+    }
+}
+
+#[cfg(test)]
+mod disconnect_tests {
+    use super::*;
+    #[test]
+    fn disconnected_inflight_calls_hold_credit_and_old_incarnations_cannot_reenter() {
+        let c = Controller::new(Config {
+            initial: 1,
+            maximum: 1,
+            ..Config::default()
+        });
+        let a = c.register(1).unwrap();
+        assert!(c.enter(1, 1, 0).is_ok());
+        drop(a);
+        let _b = c.register(2).unwrap();
+        {
+            let state = c.state.lock().unwrap();
+            assert_eq!(state.peers[&1].window, 1);
+            assert_eq!(state.peers[&2].window, 0);
+        }
+        assert!(c.register(1).is_err());
+        assert!(c.enter(1, 1, 0).is_err());
+        c.finish(1, 1);
+        assert_eq!(c.state.lock().unwrap().peers[&2].window, 1);
+        let _a = c.register(1).unwrap();
+        assert!(c.enter(1, 1, 0).is_err());
+        assert!(c.finish(1, 1).is_none());
+        assert_eq!(c.state.lock().unwrap().peers[&1].incarnation, 3);
     }
 }

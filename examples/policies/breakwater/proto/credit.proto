@@ -2,4 +2,4 @@ syntax = "proto3";
 package credit;
 service Credits { rpc Subscribe(Hello) returns (stream Grant); }
 message Hello { uint64 client = 1; }
-message Grant { uint64 generation = 1; uint64 window = 2; }
+message Grant { uint64 generation = 1; uint64 window = 2; uint64 incarnation = 3; }
