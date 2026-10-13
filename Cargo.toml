@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+  "examples/policies/persephone",
   "examples/policies/protego",
   "examples/policy-composition",
   "examples/masa/masa", "examples/masa/masa-core", "examples/masa/masa-policy", "examples/masa/masa-semantics",
