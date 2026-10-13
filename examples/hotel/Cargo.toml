@@ -1,0 +1,8 @@
+[workspace]
+resolver = "2"
+members = ["apps/hotel", "apps/app-utils", "apps/app-util-macros", "apps/rpc-policy"]
+[patch.crates-io]
+tokio = { path = "../../libs/tokio/tokio" }
+hyper = { path = "../../libs/hyper" }
+[profile.release]
+debug = 1

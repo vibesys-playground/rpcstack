@@ -1,0 +1,127 @@
+[package]
+edition = "2021"
+license = "MIT"
+name = "hotel"
+publish = false
+version = "0.1.0"
+
+[[bin]]
+name = "hotel_client_bench"
+path = "src/client/client_bench.rs"
+
+[[bin]]
+name = "hotel_frontend"
+path = "src/frontend/main.rs"
+
+[[bin]]
+name = "hotel_geo"
+path = "src/geo/main.rs"
+
+[[bin]]
+name = "hotel_rate"
+path = "src/rate/main.rs"
+
+[[bin]]
+name = "hotel_review"
+path = "src/review/main.rs"
+
+[[bin]]
+name = "hotel_search"
+path = "src/search/main.rs"
+
+[[bin]]
+name = "hotel_profile"
+path = "src/profile/main.rs"
+
+[[bin]]
+name = "hotel_reservation"
+path = "src/reservation/main.rs"
+
+[[bin]]
+name = "hotel_user"
+path = "src/user/main.rs"
+
+[[bin]]
+name = "hotel_recommendation"
+path = "src/recommendation/main.rs"
+
+# [[bin]]
+# name = "recommendation-client"
+# path = "src/recommendation/client.rs"
+
+[[bin]]
+name = "loadgen"
+path = "src/loadgen/main.rs"
+
+[features]
+default = ["rpcstack"]
+rpcstack = ["tonic/rpcstack", "tokio/sched_custom"]
+sched_mt = []
+synthetic = []
+workload_stats = []
+
+[dependencies]
+rpc-policy = { path = "../rpc-policy" }
+# Reboot
+app-utils = { path = "../app-utils" }
+app-util-macros = { path = "../app-util-macros" }
+async-compat = "0.2.3"
+futures-lite = { version = "2.0.0" }
+structopt = "0.3.23"
+crossbeam-channel = "0.5"
+mongodb = { version = "=2.8.2" }
+memcache = "0.16"
+async-memcached = "0.5.0"
+redis = { version = "0.24", features = ["tokio-comp", "connection-manager"] }
+log = "0.4"
+# Common dependencies
+tokio = { path = "../../../../libs/tokio/tokio", features = [
+	"rt-multi-thread",
+	"macros",
+] }
+prost = "0.12"
+tonic = { path = "../../../../libs/tonic/tonic" }
+futures = "0.3"
+# Optional dependencies
+either = { version = "1.9", optional = false }
+async-stream = { version = "0.3", optional = false }
+tokio-stream = { version = "=0.1.15", optional = false }
+tokio-util = { version = "=0.7.11", optional = false }
+tower = { version = "0.4", optional = false }
+rand = { version = "0.8", optional = false }
+rand_distr = "0.4"
+serde = { version = "1.0", features = ["derive"], optional = false }
+serde_json = { version = "1.0", optional = false }
+tracing = { version = "0.1.16", optional = false }
+tracing-subscriber = { version = "0.3", features = [
+	"tracing-log",
+	"fmt",
+], optional = false }
+prost-types = { version = "0.12", optional = false }
+http = { version = "0.2", optional = false }
+http-body = { version = "0.4.2", optional = false }
+hyper = { path = "../../../../libs/hyper", optional = false }
+warp = { version = "0.3.4", default-features = false, optional = false }
+listenfd = { version = "1.0", optional = false }
+bytes = { version = "1", optional = false }
+h2 = { version = "0.3.27", optional = false }
+tokio-rustls = { version = "0.26.0", optional = false }
+hyper-rustls = { version = "0.24.0", features = ["http2"], optional = false }
+rustls-pemfile = { version = "1", optional = false }
+tower-http = { version = "0.4", optional = false }
+anyhow = "1.0"
+geo = "0.28"
+# used by the geo service
+kiddo = "4.2.1"
+# used by reservation service
+chrono = "0.4.38"
+clap = { version = "4.4", features = ["derive"] }
+
+
+[build-dependencies]
+tonic-build = { path = "../../../../libs/tonic/tonic-build", features = ["prost"] }
+protoc-bin-vendored = "3"
+
+[[bin]]
+name = "hotel_probe"
+path = "src/client/probe.rs"

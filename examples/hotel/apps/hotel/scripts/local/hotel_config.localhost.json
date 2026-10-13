@@ -1,0 +1,63 @@
+{
+  "global": {
+    "hotels": 1000,
+    "cacheConns": 32,
+    "probCacheMiss": 20
+  },
+  "frontend": {
+    "ip": "127.0.0.1",
+    "port": 8660,
+    "replicas": 1
+  },
+  "geo": {
+    "ip": "127.0.0.1",
+    "port": 8661,
+    "replicas": 1
+  },
+  "profile": {
+    "ip": "127.0.0.1",
+    "port": 8662,
+    "replicas": 1,
+    "mongodbAddr": "mongodb://127.0.0.1:27004",
+    "redisAddr": "redis://127.0.0.1:11004"
+  },
+  "rate": {
+    "ip": "127.0.0.1",
+    "port": 8663,
+    "replicas": 1,
+    "mongodbAddr": "mongodb://127.0.0.1:27003",
+    "redisAddr": "redis://127.0.0.1:11003"
+  },
+  "recommendation": {
+    "ip": "127.0.0.1",
+    "port": 8664,
+    "replicas": 1
+  },
+  "reservation": {
+    "ip": "127.0.0.1",
+    "port": 8666,
+    "replicas": 1,
+    "mongodbAddr": "mongodb://127.0.0.1:27005",
+    "redisAddr": "redis://127.0.0.1:11005"
+  },
+  "review": {
+    "ip": "127.0.0.1",
+    "port": 8667,
+    "replicas": 1,
+    "mongodbAddr": "xx",
+    "redisAddr": "xx"
+  },
+  "search": {
+    "ip": "127.0.0.1",
+    "port": 8668,
+    "replicas": 1
+  },
+  "user": {
+    "ip": "127.0.0.1",
+    "port": 8669,
+    "replicas": 1,
+    "users": 1000,
+    "probCheckUser": 80,
+    "mongodbAddr": "mongodb://127.0.0.1:27006"
+  }
+}

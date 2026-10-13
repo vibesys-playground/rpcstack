@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package geo;
+
+service Geo {
+  rpc GetNearby(NearbyRequest) returns (NearbyResponse) {}
+}
+
+message NearbyRequest {
+  // uint32 ave = 1;
+
+  double lat = 1;
+  double lon = 2;
+}
+
+message NearbyResponse { repeated string hotelIds = 1; }

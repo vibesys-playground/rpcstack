@@ -15,3 +15,26 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: ./scripts/test.sh
       - run: ./scripts/check.sh
+  hotel-example:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2026-01-07
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: examples/hotel -> target
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache-dependency-path: .vibesys/tasks/hotel-goodput/benchmark/reporter/go.sum
+      - run: cargo fmt --manifest-path examples/hotel/Cargo.toml --all -- --check
+      - run: cargo test --locked --manifest-path examples/hotel/Cargo.toml --workspace
+      - run: uv run python -m pytest tests -q
+        working-directory: examples/hotel
+      - run: go test ./...
+        working-directory: .vibesys/tasks/hotel-goodput/benchmark/reporter

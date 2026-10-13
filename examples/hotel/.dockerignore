@@ -1,0 +1,11 @@
+**
+!.build-bin/
+!.build-bin/**
+!exp_runner/
+!exp_runner/common/
+!exp_runner/common/docker-build/
+!exp_runner/common/docker-build/**
+!exp/
+!exp/hotel/
+!exp/hotel/in/
+!exp/hotel/in/**

@@ -1,0 +1,8 @@
+/target/
+/.venv/
+/.build-bin/
+/exp/
+**/__pycache__/
+/.pytest_cache/
+/apps/hotel/scripts/local/hotel.json
+/apps/hotel/scripts/local/gen_config.json

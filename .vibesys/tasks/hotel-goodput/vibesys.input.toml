@@ -1,0 +1,13 @@
+version = 1
+
+[agent]
+domain = "microservices"
+
+# The task image runs services as ordinary processes; no nested Docker is needed.
+[accuracy]
+command = ["python3", "${PROJECT_ROOT}/.vibesys/tasks/hotel-goodput/benchmark/rpcstack_hotel.py", "accuracy", "--project-root", "${PROJECT_ROOT}"]
+timeout_seconds = 3600
+[benchmark]
+command = ["python3", "${PROJECT_ROOT}/.vibesys/tasks/hotel-goodput/benchmark/rpcstack_hotel.py", "benchmark", "--project-root", "${PROJECT_ROOT}"]
+timeout_seconds = 3600
+result_protocol = 2

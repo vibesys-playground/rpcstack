@@ -1,0 +1,19 @@
+[package]
+name = "app-utils"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { path = "../../../../libs/tokio/tokio", features = ["full"] }
+tonic = { path = "../../../../libs/tonic/tonic" }
+tower = "0.4"
+async-memcached = "0.5.0"
+rand = { version = "0.8" }
+structopt = "0.3.23"
+rand_distr = "0.4"
+serde = { version = "1.0", features = ["derive"], optional = false }
+serde_json = { version = "1.0", optional = false }
+bytes = { version = "1", optional = false }
+log = "0.4"
+env_logger = "0.9"
+crossbeam-channel = "0.5"

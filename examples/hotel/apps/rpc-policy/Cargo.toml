@@ -1,0 +1,14 @@
+[package]
+name = "rpc-policy"
+version = "0.1.0"
+edition = "2021"
+publish = false
+[dependencies]
+rpcstack = { path = "../../../../libs/rpcstack" }
+rpcstack-tonic = { path = "../../../../libs/rpcstack-tonic" }
+rpcstack-sched = { path = "../../../../libs/rpcstack-sched" }
+rpcstack-call = { path = "../../../../libs/rpcstack-call" }
+rpcstack-wire = { path = "../../../../libs/rpcstack-wire" }
+tonic = { path = "../../../../libs/tonic/tonic", features = ["rpcstack"] }
+tokio = { path = "../../../../libs/tokio/tokio", features = ["rt", "time", "sync"] }
+serde = { version = "1", features = ["derive"] }

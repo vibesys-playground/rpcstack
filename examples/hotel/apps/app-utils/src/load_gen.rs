@@ -1,0 +1,1049 @@
+use log::warn;
+use rand::rngs::StdRng;
+use rand::SeedableRng;
+use std::collections::HashMap;
+use std::error::Error;
+use std::fs;
+use std::fs::File;
+use std::future::Future;
+use std::io::BufReader;
+use std::io::Write;
+use std::io::{Error as IoError, ErrorKind};
+use std::iter::zip;
+use std::path::Path;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use tokio::sync::mpsc::unbounded_channel;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::sync::Semaphore;
+use tokio::time::{timeout, Duration, Instant};
+
+use rand::Rng;
+use rand_distr::{Distribution, Exp};
+use structopt::StructOpt;
+use tokio::task::JoinSet;
+use tokio::time::error::Elapsed;
+use tonic::metadata::MetadataMap;
+
+use crate::request::{Context, RootContext};
+use crate::{
+    logging::init_logging_file,
+    timing::{get_timestamp, time_now},
+};
+use tonic::Response;
+use tonic::Status;
+
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ArrivalProcess {
+    /// Constant inter-arrival times (fixed interval)
+    Const,
+    /// Exponential inter-arrival times (Poisson arrival process)
+    Exp,
+}
+
+/// Manages the arrival process timing, hiding details about the specific
+/// arrival process type (constant vs exponential) and RPS.
+pub struct ArrivalTimer {
+    arrival_process: ArrivalProcess,
+    rps: f64,
+    exp_dist: Option<Exp<f64>>,
+    rng: StdRng,
+    elapse: f64,
+}
+
+impl ArrivalTimer {
+    /// Create a new arrival timer from a u64 seed. Decouples callers from this
+    /// crate's specific `rand` version.
+    pub fn with_seed(arrival_process: ArrivalProcess, rps: f64, seed: u64) -> Self {
+        Self::new(arrival_process, rps, StdRng::seed_from_u64(seed))
+    }
+
+    /// Create a new arrival timer with the specified arrival process, RPS, and RNG seed.
+    pub fn new(arrival_process: ArrivalProcess, rps: f64, rng: StdRng) -> Self {
+        let exp_dist = match arrival_process {
+            ArrivalProcess::Exp => {
+                Some(Exp::new(rps).expect("Failed to create exponential distribution"))
+            }
+            ArrivalProcess::Const => None,
+        };
+
+        Self {
+            arrival_process,
+            rps,
+            exp_dist,
+            rng,
+            elapse: 0.0,
+        }
+    }
+
+    /// Advance the timer and return the next inter-arrival time in seconds.
+    pub fn tick(&mut self) -> f64 {
+        let interval = match self.arrival_process {
+            ArrivalProcess::Const => {
+                // Constant inter-arrival time (fixed interval)
+                1f64 / self.rps
+            }
+            ArrivalProcess::Exp => {
+                // Sample exponential inter-arrival time for Poisson process
+                // The exponential distribution with rate λ has mean 1/λ
+                self.exp_dist
+                    .as_ref()
+                    .expect("Exponential distribution should be initialized")
+                    .sample(&mut self.rng)
+            }
+        };
+        self.elapse += interval;
+        interval
+    }
+
+    /// Get the time offset for the next arrival in seconds (relative to start time).
+    pub fn next_arrival_time(&self) -> f64 {
+        self.elapse
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GenConfig {
+    #[serde(rename = "Repeats")]
+    pub repeats: u64,
+    #[serde(rename = "Apis")]
+    pub apis: Vec<String>,
+    #[serde(rename = "ApiWeights")]
+    #[serde(default)]
+    pub api_weights: Option<Vec<f64>>,
+    #[serde(rename = "Slos")]
+    pub slos: Vec<u64>,
+    #[serde(rename = "Timeouts_ms")]
+    pub timeouts_ms: Vec<u64>,
+    #[serde(rename = "Rps")]
+    pub rps_values: Vec<u64>,
+    #[serde(rename = "Gap")]
+    pub gap: ArrivalProcess,
+    #[serde(rename = "WarmupSecs")]
+    pub warmup_secs: u64,
+    #[serde(rename = "DurationSecs")]
+    pub duration_secs: u64,
+    #[serde(rename = "MaxInFlight")]
+    #[serde(default = "default_max_in_flight")]
+    pub max_in_flight: usize,
+    #[serde(rename = "Addr")]
+    pub addr: String,
+}
+
+fn default_max_in_flight() -> usize {
+    0 // 0 means unlimited
+}
+
+impl GenConfig {
+    fn validate(&self) -> Result<(), IoError> {
+        if self.apis.is_empty() {
+            return Err(invalid_config("Apis must not be empty"));
+        }
+        if self.apis.len() != self.timeouts_ms.len() {
+            return Err(invalid_config("Timeouts_ms length must match Apis length"));
+        }
+        if self.apis.len() != self.slos.len() {
+            return Err(invalid_config("Slos length must match Apis length"));
+        }
+        if let Some(weights) = &self.api_weights {
+            if weights.len() != self.apis.len() {
+                return Err(invalid_config("ApiWeights length must match Apis length"));
+            }
+            let mut total_weight = 0.0;
+            for weight in weights {
+                if !weight.is_finite() || *weight < 0.0 {
+                    return Err(invalid_config(
+                        "ApiWeights entries must be finite non-negative values",
+                    ));
+                }
+                total_weight += weight;
+            }
+            if total_weight <= 0.0 {
+                return Err(invalid_config(
+                    "ApiWeights must contain at least one positive value",
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    fn api_weight_cdf(&self) -> Vec<f64> {
+        debug_assert!(!self.apis.is_empty());
+        let weights = self
+            .api_weights
+            .clone()
+            .unwrap_or_else(|| vec![1.0; self.apis.len()]);
+        let total_weight = weights.iter().sum::<f64>();
+        debug_assert!(total_weight > 0.0);
+
+        let mut cumulative = 0.0;
+        let mut cdf = Vec::with_capacity(weights.len());
+        for weight in weights {
+            cumulative += weight / total_weight;
+            cdf.push(cumulative);
+        }
+        if let Some(last) = cdf.last_mut() {
+            *last = 1.0;
+        }
+        cdf
+    }
+}
+
+fn invalid_config(message: &str) -> IoError {
+    IoError::new(ErrorKind::InvalidData, message)
+}
+
+#[derive(StructOpt, Debug, Clone)]
+#[structopt(about = "Client for benchmarking")]
+pub struct LoadGenArgs {
+    #[structopt(long, required = true)]
+    pub gen_config: PathBuf,
+    #[structopt(long, required = true)]
+    pub output_path: String,
+    #[structopt(long)]
+    pub save_logs: bool,
+}
+
+const DEFAULT_COUNTER_KEYS: [&'static str; 7] = [
+    // total number of (sent) requests
+    "all",
+    // number of (completed) requests satisfying SLO
+    "good",
+    // number of early returns
+    "early_return",
+    // number of deadline misses without timing out
+    "deadline_miss",
+    // number of timeouts
+    "timeout",
+    // total number of unexpected errors
+    "unexpected",
+    // number of requests shed by client-side token bucket
+    "client_shed",
+];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FutureSpanType {
+    Compute,
+    Block,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct FutureSpan {
+    pub kind: FutureSpanType,
+    pub duration: Duration,
+}
+
+#[derive(Debug)]
+pub struct Task {
+    pub id: u64,
+    pub start_at: u64,
+    pub spans: Vec<FutureSpan>,
+}
+
+pub struct Counters {
+    counters_map: HashMap<String, AtomicUsize>,
+}
+
+impl Clone for Counters {
+    fn clone(&self) -> Self {
+        let mut cloned = HashMap::new();
+        for k in self.counters_map.keys() {
+            cloned.insert(k.clone(), AtomicUsize::new(self.get(&k)));
+        }
+        Self {
+            counters_map: cloned,
+        }
+    }
+}
+
+impl Counters {
+    pub fn new(keys: &[&str]) -> Self {
+        let mut map = HashMap::new();
+        for k in keys {
+            map.insert(k.to_string(), AtomicUsize::new(0));
+        }
+        Self { counters_map: map }
+    }
+
+    pub fn get(&self, k: &str) -> usize {
+        self.counters_map.get(k).unwrap().load(Ordering::SeqCst)
+    }
+
+    pub fn increment(&self, k: &str) {
+        self.counters_map
+            .get(k)
+            .expect(&format!("key '{}' not present", k))
+            .fetch_add(1, Ordering::SeqCst);
+    }
+}
+
+#[derive(Debug)]
+pub struct RequestStats<R, C>
+where
+    R: RequestType<C>,
+    C: Client,
+{
+    ctx: Context,
+    latency: u64,
+    error: String,
+    response: Option<(MetadataMap, R::ResponseType)>,
+}
+
+/// A standardized record for a single request trace.
+/// This struct ensures that all applications export traces in a consistent format.
+pub struct TraceRecord {
+    pub api: String,
+    pub request_id: u64,
+    pub slo_us: u64,
+    pub start_at: u64,
+    pub deadline: u64,
+    pub latency: u64,
+    pub error: String,
+    pub q_lat_init: u64,
+    pub q_lat_resume: u64,
+    /// JSON-encoded map of service name → queue length at first poll.
+    /// Populated only when `trace_queue_latency` feature is enabled.
+    pub queue_lengths: String,
+    pub additional_metrics: Vec<String>,
+}
+
+/// Read the price Rajomon propagated in the response's wire data and update
+/// the client-side cached price for `api`. Shared between
+/// `Handler::send_request` and bespoke loadgens (e.g. tracebench) so the same
+/// Ok+Err-aware parsing is applied everywhere. See
+/// `apps/app-utils/src/load_gen.rs:406-418` for the reasoning behind reading
+/// from error responses too.
+
+impl TraceRecord {
+    pub const HEADERS: [&'static str; 10] = [
+        "api",
+        "request_id",
+        "slo",
+        "start_at",
+        "deadline",
+        "latency",
+        "error",
+        "q_lat_init",
+        "q_lat_resume",
+        "queue_lengths",
+    ];
+
+    pub fn to_csv_header() -> String {
+        Self::HEADERS.join(",")
+    }
+
+    pub fn to_csv_row(&self) -> String {
+        self.to_csv_row_with_additional_metrics(self.additional_metrics.len())
+    }
+
+    fn to_csv_row_with_additional_metrics(&self, expected_additional_metrics: usize) -> String {
+        let generic = format!(
+            "{},{},{},{},{},{},{},{},{},{}",
+            self.api,
+            self.request_id,
+            self.slo_us,
+            self.start_at,
+            self.deadline,
+            self.latency,
+            Self::escape_csv_field(&self.error),
+            self.q_lat_init,
+            self.q_lat_resume,
+            Self::escape_csv_field(&self.queue_lengths),
+        );
+
+        assert!(
+            self.additional_metrics.len() <= expected_additional_metrics,
+            "trace record has {} additional metrics but its header has {}",
+            self.additional_metrics.len(),
+            expected_additional_metrics
+        );
+
+        if expected_additional_metrics == 0 {
+            generic
+        } else {
+            let mut row = generic;
+            for index in 0..expected_additional_metrics {
+                row.push(',');
+                if let Some(metric) = self.additional_metrics.get(index) {
+                    row.push_str(&Self::escape_csv_field(metric));
+                }
+            }
+            row
+        }
+    }
+
+    fn escape_csv_field(field: &str) -> String {
+        if field.contains(',') || field.contains('"') || field.contains('\n') {
+            format!("\"{}\"", field.replace('"', "\"\""))
+        } else {
+            field.to_string()
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+struct QueueLatencyTraceFields {
+    initial_us: u64,
+    resume_us: u64,
+    queue_lengths_json: String,
+}
+
+fn queue_latency_from_metadata(_metadata: &MetadataMap) -> QueueLatencyTraceFields {
+    QueueLatencyTraceFields::default()
+}
+
+impl<R, C> RequestStats<R, C>
+where
+    R: RequestType<C>,
+    C: Client,
+{
+    const HEADERS: [&'static str; 10] = TraceRecord::HEADERS;
+
+    fn new(
+        ctx: Context,
+        latency: u64,
+        error: String,
+        response: Option<(MetadataMap, R::ResponseType)>,
+    ) -> Self {
+        Self {
+            ctx,
+            latency,
+            error,
+            response,
+        }
+    }
+
+    fn to_trace_record(&self) -> TraceRecord {
+        let queue_latency = match &self.response {
+            Some((metadata, _)) => queue_latency_from_metadata(metadata),
+            None => QueueLatencyTraceFields::default(),
+        };
+
+        let additional = match &self.response {
+            Some((m, r)) => R::response_to_row(&m, &r),
+            None => Vec::new(),
+        };
+
+        TraceRecord {
+            api: self.ctx.api().to_string(),
+            request_id: self.ctx.request_id(),
+            slo_us: self.ctx.slo(),
+            start_at: self.ctx.gateway_entry(),
+            deadline: self.ctx.deadline(),
+            latency: self.latency,
+            error: self.error.clone(),
+            q_lat_init: queue_latency.initial_us,
+            q_lat_resume: queue_latency.resume_us,
+            queue_lengths: queue_latency.queue_lengths_json,
+            additional_metrics: additional,
+        }
+    }
+
+    fn to_row(&self, expected_additional_metrics: usize) -> String {
+        self.to_trace_record()
+            .to_csv_row_with_additional_metrics(expected_additional_metrics)
+    }
+}
+
+pub struct Handler<R, C>
+where
+    R: RequestType<C>,
+    C: Client,
+{
+    pub api: String,
+    pub rps: u64,
+    pub timeout: Duration,
+    pub slo: u64,
+
+    inner: R,
+    trace_tx: Option<UnboundedSender<RequestStats<R, C>>>,
+    trace_rx: UnboundedReceiver<RequestStats<R, C>>,
+}
+
+impl<R, C> Handler<R, C>
+where
+    R: RequestType<C>,
+    C: Client,
+{
+    pub fn new(api: &str, rps: u64, timeout: Duration, slo: u64) -> Self {
+        let (tx, rx) = unbounded_channel();
+        Self {
+            inner: R::new(api),
+            api: api.to_string(),
+            rps,
+            timeout,
+            slo,
+
+            trace_tx: Some(tx),
+            trace_rx: rx,
+        }
+    }
+
+    pub async fn send_request(
+        &self,
+        mut rng: StdRng,
+        client: C::FrontendClient,
+        ctx: RootContext,
+        trace: bool,
+    ) -> String {
+        let latency;
+        let response = {
+            let send_at = time_now();
+            let r = timeout(
+                self.timeout,
+                self.inner.create_request(&mut rng, client, &ctx),
+            )
+            .await;
+            let recv_at = time_now();
+            latency = recv_at - send_at;
+            r
+        };
+
+        let (response, error) = map_response(response, latency <= self.slo);
+
+        let stats = RequestStats::new(ctx.into_context(), latency, error.clone(), response);
+
+        if trace {
+            self.trace_tx.as_ref().unwrap().send(stats).unwrap();
+        }
+
+        error
+    }
+
+    pub async fn fetch_traces(&mut self, output_path: &Path) {
+        // must drop so that channel closes
+        {
+            self.trace_tx.take()
+        };
+        let mut file =
+            File::create(output_path.join(format!("r{}_{}.csv", self.rps, self.api))).unwrap();
+        writeln!(file, "{}", self.header_row()).unwrap();
+        let additional_metric_count = self.inner.response_output_headers().len();
+        while let Some(stats) = self.trace_rx.recv().await {
+            writeln!(file, "{}", stats.to_row(additional_metric_count)).unwrap();
+        }
+        log::info!("All traces fetched");
+    }
+
+    pub fn header_row(&self) -> String {
+        let generic = RequestStats::<R, C>::HEADERS.join(",");
+        let specific = self.inner.response_output_headers().join(",");
+        if specific.is_empty() {
+            generic
+        } else {
+            format!("{},{}", generic, specific)
+        }
+    }
+}
+
+pub trait RequestType<C>
+where
+    Self: Sized,
+    C: Client,
+{
+    type ResponseType;
+
+    fn new(api: &str) -> Self;
+
+    fn create_request(
+        &self,
+        rng: &mut StdRng,
+        client: C::FrontendClient,
+        ctx: &RootContext,
+    ) -> impl Future<Output = Result<Response<Self::ResponseType>, Status>>;
+
+    fn response_output_headers(&self) -> Vec<String>;
+
+    fn response_to_row(metadata: &MetadataMap, response: &Self::ResponseType) -> Vec<String>;
+}
+
+#[allow(async_fn_in_trait)]
+pub trait Client
+where
+    Self::FrontendClient: Send + Clone + 'static,
+    Self: 'static,
+{
+    type FrontendClient;
+
+    async fn connect(dst: String) -> Result<Self::FrontendClient, tonic::transport::Error>;
+
+    async fn ping(client: &mut Self::FrontendClient) -> Result<(), tonic::Status>;
+
+    async fn connect_with_retry(
+        dst: String,
+    ) -> Result<Self::FrontendClient, tonic::transport::Error> {
+        const MAX_RETRIES: usize = 5;
+        let mut retries = 0;
+        let mut backoff_secs = 1;
+        loop {
+            match Self::connect(dst.clone()).await {
+                Ok(c) => return Ok(c),
+                Err(e) => {
+                    retries += 1;
+                    if retries == MAX_RETRIES {
+                        return Err(e);
+                    }
+                    warn!(
+                        "Failed to connect to {}; {}/{} attempts; {}",
+                        dst, retries, MAX_RETRIES, e
+                    );
+
+                    tokio::time::sleep(Duration::from_secs(backoff_secs)).await;
+                    backoff_secs *= 2;
+                }
+            };
+        }
+    }
+}
+
+#[allow(async_fn_in_trait)]
+pub trait HandlerOuter<C>
+where
+    C: Client,
+    Self: Send + Sync + 'static,
+{
+    fn new(api: &str, rps: u64, timeout: Duration, slo: u64) -> Self;
+
+    fn send_request(
+        &self,
+        rng: StdRng,
+        client: C::FrontendClient,
+        ctx: RootContext,
+        trace: bool,
+    ) -> impl Future<Output = String> + Send;
+
+    async fn fetch_traces(&mut self, output_path: &Path);
+
+    fn api(&self) -> &str;
+
+    fn slo(&self) -> u64;
+}
+
+pub struct LoadGenerator<H, C>
+where
+    H: HandlerOuter<C>,
+    C: Client,
+{
+    rng: StdRng,
+    gen_cfg: GenConfig,
+    rps: u64,
+    client: C::FrontendClient,
+    api_handlers: Vec<Arc<H>>,
+    api_weight_cdf: Vec<f64>,
+}
+
+impl<H, C> LoadGenerator<H, C>
+where
+    H: HandlerOuter<C> + Send + Sync,
+    C: Client,
+{
+    pub fn new(
+        seed: u64,
+        gen_cfg: GenConfig,
+        rps: u64,
+        client: C::FrontendClient,
+        api_handlers: Vec<Arc<H>>,
+    ) -> Self {
+        Self {
+            rng: StdRng::seed_from_u64(seed + rps),
+            api_weight_cdf: gen_cfg.api_weight_cdf(),
+            gen_cfg,
+            rps,
+            client,
+            api_handlers,
+        }
+    }
+
+    fn sample_api_handler(&mut self) -> usize {
+        let draw: f64 = self.rng.gen();
+        self.api_weight_cdf
+            .iter()
+            .position(|cutoff| draw < *cutoff)
+            .unwrap_or_else(|| self.api_weight_cdf.len() - 1)
+    }
+
+    async fn run(&mut self, output_path: &Path) -> Result<(), Box<dyn Error>> {
+        let init_at = Instant::now();
+        let trace_at = init_at + Duration::from_secs(self.gen_cfg.warmup_secs);
+        let pause_at =
+            init_at + Duration::from_secs(self.gen_cfg.warmup_secs + self.gen_cfg.duration_secs);
+
+        let counter_keys = &DEFAULT_COUNTER_KEYS;
+        let counters = Arc::new(Counters::new(counter_keys));
+
+        let h = tokio::task::spawn(stats_logger(Arc::clone(&counters), pause_at));
+
+        self.generate_load(counters, init_at, trace_at, pause_at)
+            .await;
+
+        let _ = h.await;
+
+        log::info!("Load generated, writing trace");
+
+        let handlers = self
+            .api_handlers
+            .drain(..)
+            .map(|h| Arc::into_inner(h).unwrap());
+
+        // output traces
+        for mut handler in handlers {
+            handler.fetch_traces(output_path).await
+        }
+
+        Ok(())
+    }
+
+    async fn generate_load(
+        &mut self,
+        counters: Arc<Counters>,
+        init_at: Instant,
+        trace_at: Instant,
+        pause_at: Instant,
+    ) {
+        let mut set = JoinSet::new();
+        let max_in_flight = self.gen_cfg.max_in_flight;
+
+        // Create semaphore for max in-flight control only if max_in_flight > 0
+        // If max_in_flight is 0 (unlimited), don't use a semaphore at all
+        let inflight_guard: Option<Arc<Semaphore>> = if max_in_flight > 0 {
+            Some(Arc::new(Semaphore::new(max_in_flight)))
+        } else {
+            None
+        };
+
+        // Create arrival timer to manage inter-arrival times
+        let mut arrival_timer =
+            ArrivalTimer::new(self.gen_cfg.gap, self.rps as f64, self.rng.clone());
+
+        while Instant::now() < pause_at {
+            // XXX: tokio's sleep has millisecond granularity, so for small intervals this may be
+            // inaccurate
+            let start_at = init_at + Duration::from_secs_f64(arrival_timer.next_arrival_time());
+            tokio::time::sleep_until(start_at).await;
+
+            // Advance timer and get next inter-arrival time
+            // This updates elapse internally, so we advance even if we skip this request
+            let _interval = arrival_timer.tick();
+
+            // Try to acquire permit for max-in-flight control if semaphore exists
+            // If acquisition fails, skip this request and continue to next iteration
+            let permit = if let Some(ref guard) = inflight_guard {
+                match guard.clone().try_acquire_owned() {
+                    Ok(p) => Some(p),
+                    Err(_) => continue,
+                }
+            } else {
+                None
+            };
+
+            let i = self.sample_api_handler();
+            let handler = Arc::clone(&self.api_handlers[i]);
+
+            let ctx = RootContext::from(crate::request::create_context(
+                handler.api(),
+                std::time::Duration::from_micros(handler.slo()),
+            ));
+
+            let client = self.client.clone();
+            let ctrs = Arc::clone(&counters);
+            let rng = self.rng.clone();
+            let trace = Instant::now() > trace_at;
+
+            set.spawn(async move {
+                let _permit = permit; // Hold permit until task completes
+                ctrs.increment("all");
+
+                let error = handler.send_request(rng, client, ctx, trace).await;
+
+                if trace {
+                    // increment the right counters
+                    let err_str = error.as_str();
+                    if err_str == "/None" {
+                        ctrs.increment("good");
+                    } else if err_str == "/ClientMiss" {
+                        ctrs.increment("deadline_miss");
+                    } else if err_str.starts_with("/EarlyReturn") {
+                        ctrs.increment("early_return");
+                    } else if err_str == "/ClientTimeout" {
+                        ctrs.increment("timeout");
+                    } else {
+                        ctrs.increment("unexpected");
+                        log::error!("unexpected request error '{}'", err_str);
+                    }
+                }
+            });
+        }
+
+        // wait for all outgoing requests to complete
+        while let Some(_) = set.join_next().await {}
+    }
+}
+
+pub async fn load_gen_main<H, C>(
+    args: LoadGenArgs,
+    seed: u64,
+) -> Result<(), Box<dyn std::error::Error>>
+where
+    H: HandlerOuter<C>,
+    C: Client,
+{
+    let output_path = Path::new(&args.output_path);
+    if !output_path.exists() {
+        fs::create_dir_all(output_path).unwrap();
+    }
+
+    let log_file = if args.save_logs {
+        Some(format!("{}/loadgen.log", args.output_path))
+    } else {
+        None
+    };
+    init_logging_file(log_file);
+
+    let gen_cfg: GenConfig = {
+        let file = File::open(args.gen_config).expect("Failed to open file");
+        let reader = BufReader::new(file);
+        serde_json::from_reader(reader)?
+    };
+    gen_cfg.validate()?;
+
+    for rps in &gen_cfg.rps_values {
+        log::info!("Running rps: {}... ({})", rps, get_timestamp());
+        let mut api_handlers = Vec::new();
+        for (api, (timeout_ms, slo)) in zip(&gen_cfg.apis, zip(&gen_cfg.timeouts_ms, &gen_cfg.slos))
+        {
+            api_handlers.push(Arc::new(H::new(
+                api,
+                *rps,
+                Duration::from_millis(*timeout_ms),
+                *slo,
+            )));
+        }
+
+        log::info!("Before Connection");
+
+        let mut load_gen = {
+            let client = C::connect_with_retry(gen_cfg.addr.clone())
+                .await
+                .expect(&format!("Should be able to connect to {}", gen_cfg.addr));
+            log::info!("Connected to {}", gen_cfg.addr);
+
+            let load_gen = LoadGenerator::new(seed, gen_cfg.clone(), *rps, client, api_handlers);
+            load_gen
+        };
+
+        load_gen.run(output_path).await.unwrap();
+    }
+
+    log::info!("Load generator done");
+    Ok(())
+}
+
+async fn stats_logger(counters: Arc<Counters>, pause_at: Instant) {
+    let mut secs = 0;
+    let mut prev = Counters::new(&DEFAULT_COUNTER_KEYS);
+    while Instant::now() < pause_at {
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        secs += 1;
+
+        let delta = |k| counters.get(k) - prev.get(k);
+
+        log::warn!(
+            "secs: {}, rps: {}, good: {}, ER: {}, ddl_miss: {}, timeouts: {}, client_shed: {}; total: ER {}, ddl_miss {}, timeout {}, client_shed {}",
+            secs,
+            delta("all"),
+            delta("good"),
+            delta("early_return"),
+            delta("deadline_miss"),
+            delta("timeout"),
+            delta("client_shed"),
+            counters.get("early_return"),
+            counters.get("deadline_miss"),
+            counters.get("timeout"),
+            counters.get("client_shed"),
+        );
+        // clone the Counters struct itself as opposed to creating another reference
+        prev = (*counters).clone();
+    }
+}
+
+fn map_response<T>(
+    response: Result<Result<Response<T>, Status>, Elapsed>,
+    met_slo: bool,
+) -> (Option<(MetadataMap, T)>, String) {
+    let error = match &response {
+        Ok(response) => {
+            if let Err(ref status) = response {
+                format!("/RpcError/{:?}: {}", status.code(), status.message())
+            } else if !met_slo {
+                "/ClientMiss".to_string()
+            } else {
+                "/None".to_string()
+            }
+        }
+        Err(_) => "/ClientTimeout".to_string(),
+    };
+    let response = match response {
+        Ok(r) => r
+            .map(|r| {
+                let t = r.into_parts();
+                (t.0, t.1)
+            })
+            .ok(),
+        Err(_) => None,
+    };
+    (response, error)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rpc_error_text_cannot_impersonate_success() {
+        for message in ["/None", "/ClientMiss", "/ClientTimeout", ""] {
+            let (body, label) = map_response::<()>(Ok(Err(Status::unavailable(message))), true);
+            assert!(body.is_none());
+            assert!(label.starts_with("/RpcError/Unavailable:"));
+            assert_ne!(label, "/None");
+        }
+    }
+
+    fn test_gen_config(api_weights: Option<Vec<f64>>) -> GenConfig {
+        GenConfig {
+            repeats: 1,
+            apis: vec!["a".to_string(), "b".to_string()],
+            api_weights,
+            slos: vec![200_000, 200_000],
+            timeouts_ms: vec![1_000, 1_000],
+            rps_values: vec![100],
+            gap: ArrivalProcess::Exp,
+            warmup_secs: 1,
+            duration_secs: 1,
+            max_in_flight: 0,
+            addr: "http://localhost:8000".to_string(),
+        }
+    }
+
+    #[test]
+    fn api_weight_cdf_defaults_to_uniform() {
+        let cfg = test_gen_config(None);
+        cfg.validate().unwrap();
+
+        assert_eq!(cfg.api_weight_cdf(), vec![0.5, 1.0]);
+    }
+
+    #[test]
+    fn api_weight_cdf_normalizes_explicit_weights() {
+        let cfg = test_gen_config(Some(vec![3.0, 7.0]));
+        cfg.validate().unwrap();
+
+        assert_eq!(cfg.api_weight_cdf(), vec![0.3, 1.0]);
+    }
+
+    #[test]
+    fn api_weights_must_match_apis() {
+        let cfg = test_gen_config(Some(vec![1.0]));
+
+        assert!(cfg.validate().is_err());
+    }
+
+    #[test]
+    fn api_weights_must_have_positive_total() {
+        let cfg = test_gen_config(Some(vec![0.0, 0.0]));
+
+        assert!(cfg.validate().is_err());
+    }
+
+    #[test]
+    fn trace_rows_pad_missing_application_metrics() {
+        let record = TraceRecord {
+            api: "Search".to_string(),
+            request_id: 42,
+            slo_us: 200_000,
+            start_at: 1_000_000,
+            deadline: 1_200_000,
+            latency: 5_000_000,
+            error: "/ClientTimeout".to_string(),
+            q_lat_init: 0,
+            q_lat_resume: 0,
+            queue_lengths: String::new(),
+            additional_metrics: Vec::new(),
+        };
+
+        let row = record.to_csv_row_with_additional_metrics(3);
+        assert_eq!(row.split(',').count(), TraceRecord::HEADERS.len() + 3);
+        assert!(row.ends_with(",,,"));
+    }
+    #[test]
+    fn trace_rows_preserve_available_application_metrics() {
+        let record = TraceRecord {
+            api: "Reservation".to_string(),
+            request_id: 7,
+            slo_us: 100_000,
+            start_at: 1_000_000,
+            deadline: 1_100_000,
+            latency: 12_000,
+            error: String::new(),
+            q_lat_init: 1,
+            q_lat_resume: 2,
+            queue_lengths: "[]".to_string(),
+            additional_metrics: vec!["a".to_string(), "b".to_string()],
+        };
+
+        let row = record.to_csv_row_with_additional_metrics(3);
+        assert_eq!(row.split(',').count(), TraceRecord::HEADERS.len() + 3);
+        assert!(row.ends_with(",a,b,"));
+    }
+}
+
+// pub fn parse_tasks_from_file<P: AsRef<Path>>(path: P) -> io::Result<Vec<Task>> {
+//     let file = File::open(path)?;
+//     let reader = BufReader::new(file);
+
+//     reader
+//         .lines()
+//         .enumerate()
+//         .map(|(i, line_result)| {
+//             let line = line_result?;
+//             parse_line(&line).map_err(|e| {
+//                 io::Error::new(io::ErrorKind::InvalidData, format!("Error on line {}: {}", i + 1, e))
+//             })
+//         })
+//         .collect()
+// }
+
+// fn parse_line(line: &str) -> Result<Task, String> {
+//     let mut parts = line.split(',');
+//     let id_str = parts.next().ok_or("Line is empty")?;
+//     let id = id_str
+//         .parse::<u64>()
+//         .map_err(|e| format!("Invalid Task ID '{}': {}", id_str, e))?;
+
+//     let mut spans = Vec::new();
+//     for part in parts {-
+//         let (type_str, duration_part) = part
+//             .split('(')
+//             .ok_or(format!("Malformed stage: '{}'", part))?;
+//         let kind = match type_str {
+//             "Compute" => FutureSpanType::Compute,
+//             "Block" => FutureSpanType::Block,
+//             _ => return Err(format!("Unknown stage type: '{}'", type_str)),
+//         };
+//         let duration_str = duration_part
+//             .strip_suffix("us)")
+//             .ok_or(format!("Malformed duration: '{}'", duration_part))?;
+//         let micros = duration_str
+//             .parse::<u64>()
+//             .map_err(|e| format!("Invalid duration value '{}': {}", duration_str, e))?;
+//         spans.push(FutureSpan {
+//             kind,
+//             duration: Duration::from_micros(micros),
+//         });
+//     }
+//     Ok(Task { id, spans })
+// }

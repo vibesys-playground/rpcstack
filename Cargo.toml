@@ -1,5 +1,6 @@
 [workspace]
 resolver = "2"
+exclude = ["examples/hotel"]
 members = [
   "examples/policies/atropos",
   "examples/policies/rifl",

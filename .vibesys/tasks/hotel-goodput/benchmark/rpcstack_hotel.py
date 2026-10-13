@@ -1,0 +1,496 @@
+#!/usr/bin/env python3
+"""VibeSys evaluator shim for rpcstack's Hotel Reservation app.
+
+Both VibeSys gates call this file, which wraps rpcstack's experiment runner:
+
+- ``accuracy`` checks that the candidate changed only the agent-owned policy
+  slots, builds and tests those slots with the task's features, and runs Hotel
+  at light load, where nearly every request must succeed within its SLO.
+- ``benchmark`` runs Hotel through ``exp_runner`` over a Poisson load sweep
+  past saturation, computes goodput from the load generator's per-request CSVs,
+  and reports it with the VibeSys evaluator result protocol (version 2,
+  ``sdk_report.py``).
+
+Inputs (experiment configs and the build features) live next to this file,
+under the task directory, which coding agents cannot edit. The script copies a
+config into ``exp/hotel/in/<name>/`` (git-ignored) because ``exp_runner`` reads
+experiments from there.
+"""
+
+from __future__ import annotations
+
+import argparse
+import contextlib
+import csv
+import fcntl
+import hashlib
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+from dataclasses import dataclass
+from pathlib import Path
+
+from sdk_report import OUTPUT_FLAG, MetricSpec, ProtocolReport
+
+TASK_DIR = Path(__file__).resolve().parent.parent
+EXPERIMENTS_DIR = TASK_DIR / "benchmark" / "experiments"
+
+FEATURES = "rpcstack"
+PROTECTED_MANIFEST = TASK_DIR / "benchmark" / "protected_files.txt"
+ALLOWED_PREFIXES = ("examples/hotel/apps/rpc-policy/src/",)
+ALLOWED_FILES = (
+    "libs/rpcstack-sched/src/custom.rs",
+    "libs/rpcstack-sched/src/replay_tests.rs",
+)
+
+#: Coding-agent configuration directories. VibeSys installs its own skills
+#: there for a run, and nothing in them reaches a build or an evaluation.
+AGENT_CONFIG_DIRS = (
+    ".agents/",
+    ".claude/",
+    ".codex/",
+    ".cursor/",
+    ".gemini/",
+    ".opencode/",
+)
+
+#: Serializes runs: exp_runner uses fixed container names and image tags, so
+#: two candidates must not deploy Hotel at the same time on one Docker host.
+LOCK_PATH = Path("/tmp/vibesys-rpcstack-hotel.lock")
+
+SUCCESS = "/None"
+
+#: Light-load gate: the fraction of offered requests that must succeed within
+#: their SLO at the lowest load point, overall and per API. It rejects
+#: policies that buy overload goodput by shedding or aborting work they could
+#: have served.
+LIGHT_LOAD_MIN_GOODPUT_FRACTION = 0.97
+
+#: Failed requests (any non-OK status, including timeouts, rejections and
+#: aborts) tolerated in the accuracy run, as a fraction of offered requests.
+ACCURACY_MAX_ERROR_FRACTION = 0.01
+
+
+class EvaluationError(RuntimeError):
+    """The candidate could not be evaluated, with a reason for the agent."""
+
+
+@dataclass(frozen=True)
+class Point:
+    """One load point of an experiment, aggregated over its APIs."""
+
+    rps: int
+    offered: int
+    good: int
+    errors: int
+    duration_s: float
+    good_by_api: dict[str, tuple[int, int]]
+    success_latencies_us: list[int]
+
+    @property
+    def goodput_rps(self) -> float:
+        return self.good / self.duration_s
+
+    @property
+    def goodput_fraction(self) -> float:
+        return self.good / self.offered if self.offered else 0.0
+
+
+def tool(name: str) -> str:
+    """Resolve a toolchain binary, also checking the default per-user install dirs."""
+    found = shutil.which(name)
+    if found:
+        return found
+    for directory in (
+        Path(os.environ.get("CARGO_HOME", Path.home() / ".cargo")) / "bin",
+        Path.home() / ".local" / "bin",
+    ):
+        candidate = directory / name
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate)
+    raise EvaluationError(
+        f"`{name}` is not on PATH; the task needs it installed on the host"
+    )
+
+
+def environment(extra_env: dict[str, str] | None = None) -> dict[str, str]:
+    """Environment for child commands: toolchain dirs on PATH, protoc located."""
+    env = dict(os.environ) | (extra_env or {})
+    extra = [str(Path(tool("cargo")).parent), str(Path(tool("uv")).parent)]
+    env["PATH"] = os.pathsep.join([*extra, env.get("PATH", "")])
+    if "PROTOC" not in env:
+        protoc = shutil.which("protoc", path=env["PATH"]) or str(
+            Path.home() / ".local" / "protoc" / "bin" / "protoc"
+        )
+        if Path(protoc).is_file():
+            env["PROTOC"] = protoc
+    return env
+
+
+def run(
+    argv: list[str],
+    root: Path,
+    *,
+    timeout: float,
+    log: Path | None = None,
+    extra_env: dict[str, str] | None = None,
+) -> None:
+    """Run one command in the candidate root, failing with the output tail."""
+    print(f"$ {' '.join(argv)}", flush=True)
+    started = time.monotonic()
+    process = subprocess.Popen(
+        argv,
+        cwd=root,
+        env=environment(extra_env),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    try:
+        output, _ = process.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        process.terminate()  # runner handles SIGTERM and tears down owned children
+        try:
+            output, _ = process.communicate(timeout=60)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            output, _ = process.communicate()
+        if log:
+            log.parent.mkdir(parents=True, exist_ok=True)
+            log.write_text(output)
+        raise
+    result = subprocess.CompletedProcess(argv, process.returncode, output)
+    if log is not None:
+        log.parent.mkdir(parents=True, exist_ok=True)
+        log.write_text(result.stdout)
+    print(
+        f"  exit {result.returncode} after {time.monotonic() - started:.0f}s",
+        flush=True,
+    )
+    if result.returncode != 0:
+        tail = "\n".join(result.stdout.splitlines()[-60:])
+        raise EvaluationError(f"`{' '.join(argv)}` exited {result.returncode}:\n{tail}")
+
+
+def git(root: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", *args], cwd=root, capture_output=True, text=True, check=True
+    ).stdout
+
+
+def allowed(path: str) -> bool:
+    return path.startswith(ALLOWED_PREFIXES) or path in ALLOWED_FILES
+
+
+def blob_id(path: Path) -> str:
+    """Git's object id for a file or symlink, computed without a repository."""
+    data = os.readlink(path).encode() if path.is_symlink() else path.read_bytes()
+    return hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
+
+
+def write_manifest(root: Path) -> None:
+    """Record the staged baseline files in ``PROTECTED_MANIFEST``."""
+    lines = []
+    for entry in git(root, "ls-files", "--stage", "-z").split("\0"):
+        if not entry:
+            continue
+        meta, path = entry.split("\t", 1)
+        _mode, object_id, _stage = meta.split()
+        kind = "commit" if _mode == "160000" else "blob"
+        if path.startswith((".vibesys/", *AGENT_CONFIG_DIRS)) or allowed(path):
+            continue
+        lines.append(
+            f"submodule {path}"
+            if kind == "commit"
+            else f"{blob_id(root / path)} {path}"
+        )
+    PROTECTED_MANIFEST.write_text("\n".join(sorted(lines)) + "\n")
+
+
+def check_scope(root: Path) -> None:
+    """Fail when the candidate changed a file outside the agent-owned slots.
+
+    Every protected baseline file must be unchanged, and no new non-ignored file
+    may appear beside them. Only top-level entries that exist at the baseline
+    are checked, so files VibeSys itself adds at the repository root are fine.
+    """
+    expected: dict[str, str] = {}
+    submodules: list[str] = []
+    for line in PROTECTED_MANIFEST.read_text().splitlines():
+        object_id, path = line.split(" ", 1)
+        if object_id == "submodule":
+            submodules.append(path)
+        else:
+            expected[path] = object_id
+    violations = []
+    for path, object_id in expected.items():
+        candidate = root / path
+        if not (candidate.is_file() or candidate.is_symlink()):
+            violations.append(f"{path} (deleted)")
+        elif blob_id(candidate) != object_id:
+            violations.append(f"{path} (modified)")
+    present = git(root, "ls-files", "-z", "--cached", "--others", "--exclude-standard")
+    for path in present.split("\0"):
+        if (
+            path
+            and not path.startswith((".vibesys/", *AGENT_CONFIG_DIRS))
+            and path
+            not in ("README.md", "UPSTREAM-README.md", "CLAUDE.md", "AGENTS.md")
+            and not path.startswith(("progress/", "eval/", "logs/", "post-run-ab/"))
+            and path not in expected
+            and not allowed(path)
+            and not any(path == sub or path.startswith(sub + "/") for sub in submodules)
+        ):
+            violations.append(f"{path} (added)")
+    if violations:
+        listed = "\n".join(f"  {path}" for path in sorted(violations)[:50])
+        raise EvaluationError(
+            "changes outside the agent-owned slots (examples/hotel/apps/rpc-policy/src/, "
+            "libs/rpcstack-sched/src/custom.rs, libs/rpcstack-sched/src/replay_tests.rs):\n"
+            f"{listed}\nRevert them; the rest of the repository is evaluator and framework code."
+        )
+
+
+@contextlib.contextmanager
+def hotel_lock():
+    LOCK_PATH.touch(exist_ok=True)
+    with LOCK_PATH.open("r+") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle, fcntl.LOCK_UN)
+
+
+def run_experiment(root: Path, kind: str, *, timeout: float) -> tuple[Path, dict]:
+    """Run one task-owned experiment config through exp_runner.
+
+    Returns the output directory of the single policy and the generator config.
+    """
+    root = root / "examples" / "hotel"
+    name = f"vibesys_{kind}"
+    source = EXPERIMENTS_DIR / kind
+    target = root / "exp" / "hotel" / "in" / name
+    shutil.rmtree(target, ignore_errors=True)
+    shutil.copytree(source, target)
+    (target / "policies").write_text(FEATURES + "\n")
+    out = root / "exp" / "hotel" / "out" / name
+    shutil.rmtree(out, ignore_errors=True)
+    logs = root / "exp" / "hotel" / "vibesys-logs"
+    with hotel_lock():
+        run(
+            [
+                tool("uv"),
+                "run",
+                "--quiet",
+                "-m",
+                "exp_runner",
+                "run",
+                "hotel",
+                name,
+                "--rm-data",
+                "--deployment",
+                "process",
+            ],
+            root,
+            timeout=timeout,
+            log=logs / f"{name}.log",
+        )
+    policy_dirs = [path for path in (out / "0").iterdir() if path.is_dir()]
+    if len(policy_dirs) != 1:
+        raise EvaluationError(f"expected one policy output directory under {out / '0'}")
+    return policy_dirs[0], json.loads((source / "gen_config.json").read_text())
+
+
+def read_points(policy_dir: Path, gen_config: dict) -> list[Point]:
+    """Aggregate the load generator's per-request CSVs into one Point per rate."""
+    duration_s = float(gen_config["DurationSecs"])
+    points = []
+    for rps in gen_config["Rps"]:
+        offered = good = errors = 0
+        good_by_api: dict[str, tuple[int, int]] = {}
+        latencies: list[int] = []
+        for api in gen_config["Apis"]:
+            path = policy_dir / f"r{rps}_{api}.csv"
+            if not path.is_file():
+                raise EvaluationError(
+                    f"load generator wrote no results for {api} at {rps} rps"
+                )
+            api_offered = api_good = 0
+            with path.open(newline="") as handle:
+                for row in csv.DictReader(handle):
+                    api_offered += 1
+                    latency = int(row["latency"])
+                    if row["error"] not in (SUCCESS, "/ClientMiss"):
+                        errors += 1
+                    else:
+                        latencies.append(latency)
+                        if row["error"] == SUCCESS and latency <= int(row["slo"]):
+                            api_good += 1
+            offered += api_offered
+            good += api_good
+            good_by_api[api] = (api_good, api_offered)
+        if offered < 0.9 * rps * duration_s:
+            raise EvaluationError(
+                f"generator under-delivered at {rps} rps: {offered} requests; expected approximately {rps * duration_s}"
+            )
+        points.append(
+            Point(rps, offered, good, errors, duration_s, good_by_api, latencies)
+        )
+    return points
+
+
+def check_light_load(point: Point) -> None:
+    """Fail when the lightest load point does not serve nearly everything in SLO."""
+    shortfalls = [
+        f"{api}: {good}/{offered}"
+        for api, (good, offered) in point.good_by_api.items()
+        if not offered or good / offered < LIGHT_LOAD_MIN_GOODPUT_FRACTION
+    ]
+    if point.goodput_fraction < LIGHT_LOAD_MIN_GOODPUT_FRACTION or shortfalls:
+        raise EvaluationError(
+            f"at {point.rps} rps (below saturation) only {point.good}/{point.offered} requests "
+            f"succeeded within their SLO ({point.goodput_fraction:.3f}; required "
+            f">= {LIGHT_LOAD_MIN_GOODPUT_FRACTION}); per API: "
+            + ", ".join(f"{api}: {g}/{o}" for api, (g, o) in point.good_by_api.items())
+        )
+
+
+def percentile(values: list[int], q: float) -> float:
+    if not values:
+        return float("nan")
+    ordered = sorted(values)
+    return float(ordered[min(len(ordered) - 1, int(q * len(ordered)))])
+
+
+def accuracy(root: Path) -> None:
+    check_scope(root)
+    print("scope: ok", flush=True)
+    cargo = tool("cargo")
+    run(
+        [
+            cargo,
+            "test",
+            "--locked",
+            "-p",
+            "rpcstack-sched",
+            "--features",
+            "sched_custom",
+        ],
+        root,
+        timeout=1800,
+    )
+    run(
+        [
+            cargo,
+            "test",
+            "--locked",
+            "-p",
+            "rpc-policy",
+            "--features",
+            "tokio/full,tokio/sched_custom",
+            "--manifest-path",
+            "examples/hotel/Cargo.toml",
+        ],
+        root,
+        timeout=1800,
+    )
+    policy_dir, gen_config = run_experiment(root, "accuracy", timeout=2400)
+    points = read_points(policy_dir, gen_config)
+    for point in points:
+        if point.errors > ACCURACY_MAX_ERROR_FRACTION * point.offered:
+            raise EvaluationError(
+                f"{point.errors}/{point.offered} requests failed at {point.rps} rps (light load); "
+                "a policy must not reject or abort requests it can serve"
+            )
+        check_light_load(point)
+        print(
+            f"light load {point.rps} rps: {point.good}/{point.offered} within SLO",
+            flush=True,
+        )
+
+
+METRICS = {
+    "mean_goodput_rps": MetricSpec(unit="req/s", direction="max"),
+    "mean_goodput_fraction": MetricSpec(unit="fraction", direction="max"),
+    "peak_load_goodput_rps": MetricSpec(unit="req/s", direction="max"),
+    "light_load_goodput_fraction": MetricSpec(unit="fraction", direction="max"),
+    "error_fraction": MetricSpec(unit="fraction", direction="min"),
+    "peak_load_p99_success_latency_ms": MetricSpec(
+        unit="ms", direction="min", required=False
+    ),
+}
+
+
+def benchmark(root: Path, report: ProtocolReport) -> None:
+    report.declare(METRICS)
+    check_scope(root)
+    policy_dir, gen_config = run_experiment(root, "benchmark", timeout=3000)
+    points = read_points(policy_dir, gen_config)
+    check_light_load(points[0])
+    for point in points:
+        per_api = ", ".join(
+            f"{api} {good}/{offered}"
+            for api, (good, offered) in point.good_by_api.items()
+        )
+        print(
+            f"{point.rps:>5} rps: goodput {point.goodput_rps:8.1f} req/s "
+            f"({point.goodput_fraction:.3f} of offered; errors {point.errors}; {per_api})",
+            flush=True,
+        )
+    offered = sum(point.offered for point in points)
+    report.emit(
+        {
+            "mean_goodput_rps": sum(p.goodput_rps for p in points) / len(points),
+            "mean_goodput_fraction": sum(p.goodput_fraction for p in points)
+            / len(points),
+            "peak_load_goodput_rps": points[-1].goodput_rps,
+            "light_load_goodput_fraction": points[0].goodput_fraction,
+            "error_fraction": sum(p.errors for p in points) / offered,
+            **(
+                {
+                    "peak_load_p99_success_latency_ms": percentile(
+                        points[-1].success_latencies_us, 0.99
+                    )
+                    / 1000
+                }
+                if points[-1].success_latencies_us
+                else {}
+            ),
+        }
+    )
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("mode", choices=("accuracy", "benchmark", "manifest"))
+    parser.add_argument("--project-root", type=Path, default=Path.cwd())
+    parser.add_argument(OUTPUT_FLAG, dest="vs_output", type=Path, default=None)
+    args = parser.parse_args()
+    root = args.project_root.resolve()
+    if args.mode == "manifest":
+        write_manifest(root)
+        return 0
+    if args.mode == "accuracy":
+        try:
+            accuracy(root)
+        except (EvaluationError, subprocess.TimeoutExpired) as error:
+            print(f"accuracy: FAIL\n{error}", file=sys.stderr)
+            return 1
+        print("accuracy: PASS")
+        return 0
+    with ProtocolReport(args.vs_output) as report:
+        try:
+            benchmark(root, report)
+        except (EvaluationError, subprocess.TimeoutExpired) as error:
+            print(f"benchmark: FAIL\n{error}", file=sys.stderr)
+            report.fail(str(error))
+            return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
