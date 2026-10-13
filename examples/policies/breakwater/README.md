@@ -35,3 +35,9 @@ before transport, credit reuse, and normal gRPC execution. Unit tests cover cont
 increase/decrease, revocation, used-credit conservation, and stale feedback. No claim
 that the framework observes the NIC/kernel receive queue or prevents receive livelock.
 Run `cargo test -p rpcstack-breakwater`.
+
+Control-stream disconnection revokes unused credits but retains occupied credits
+until those server calls complete. A new subscription receives a server-assigned
+incarnation; stale requests and responses from earlier subscriptions cannot consume
+or alter the new window. Reusing a client ID while its old calls remain in flight
+is rejected. This is lifecycle isolation, not authentication of client identities.
