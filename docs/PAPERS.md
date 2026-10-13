@@ -6,7 +6,7 @@ They exercise mechanisms; passing their tests does not reproduce a paper's perfo
 ## Rajomon and TailClipper
 
 Sources: [Rajomon, NSDI 2025](https://www.usenix.org/system/files/nsdi25-xing.pdf)
-and [TailClipper, APSys 2024](https://doi.org/10.1145/3698038.3698554).
+and [TailClipper, SoCC 2024](https://doi.org/10.1145/3698038.3698554).
 
 `examples/policies/rajomon` contains `PaperRajomonModule`: per-interface local plus
 maximum-downstream pricing, unchanged token holdings across hops, root token spending,
@@ -54,9 +54,8 @@ counted as one of the five additional papers, and the framework does not depend 
 
 ## Review and test the full corpus
 
-The `review/policy-corpus` branch combines the unmerged review branches so all
-examples can be built and tested together. `main` remains unchanged. Individual
-PRs keep changes separately reviewable:
+The original corpus was merged to `main` through PR #11. Individual
+PRs preserve the implementation history:
 
 - [#1 Rajomon + cooperative TailClipper](https://github.com/vibesys-playground/rpcstack/pull/1), based on main.
 - [#2 generic async calls/resources](https://github.com/vibesys-playground/rpcstack/pull/2), based on main.
@@ -65,10 +64,9 @@ PRs keep changes separately reviewable:
 - [#9 Masa example](https://github.com/vibesys-playground/rpcstack/pull/9) stacks on #1.
 - [#10 external-consumer compatibility](https://github.com/vibesys-playground/rpcstack/pull/10) follows #8 and prevents a second incompatible Tokio.
 
-The chain is for cumulative validation/review; DAGOR, Breakwater, C3, hedging and
+The historical chain was for cumulative validation/review; DAGOR, Breakwater, C3, hedging and
 Aequitas do not depend on each other's algorithms. Framework extensions, test
-fixtures and Cargo manifests are shared. Reviewers can merge in dependency order
-and retarget remaining PR bases. Nothing is auto-merged.
+fixtures and Cargo manifests are shared. These PRs are all merged.
 
 ```sh
 ./scripts/test.sh
@@ -83,3 +81,11 @@ local rejection and recovery. The external-workspace test deliberately starts
 without this repository's lockfile and checks that only the vendored Tokio resolves.
 See [the VibeSys implementation guide](VIBESYS.md) for extension-point selection
 and the substrate capabilities that these tests do not establish.
+
+## Additional RPC mechanisms (second study)
+
+- [Protego, NSDI 2023](https://www.usenix.org/system/files/nsdi23-cho-inho.pdf):
+  [implementation](../examples/policies/protego), marginal-throughput credit
+  control and budgeted synchronization queues with live RPC rejection/recovery.
+  Uses measured handler intervals and the existing gRPC credit channel; see its
+  README for the distinctions from Shenango and the paper's credit RTT sensor.
