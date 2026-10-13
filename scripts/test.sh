@@ -13,3 +13,4 @@ cargo test --locked -p rpcstack-echo --features priority
 cargo test --locked -p rpcstack-call
 cargo test --locked -p rpcstack-dagor
 cargo test --locked -p rpcstack-breakwater
+cargo test --locked -p rpcstack-hedged

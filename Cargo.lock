@@ -1853,6 +1853,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "rpcstack-hedged"
+version = "0.1.0"
+dependencies = [
+ "rpcstack",
+ "rpcstack-call",
+ "rpcstack-testkit",
+ "rpcstack-tonic",
+ "tokio",
+ "tonic",
+]
+
+[[package]]
 name = "rpcstack-sched"
 version = "0.1.0"
 
