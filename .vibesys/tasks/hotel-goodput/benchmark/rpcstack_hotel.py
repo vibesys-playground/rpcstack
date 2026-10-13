@@ -238,8 +238,14 @@ def check_scope(root: Path) -> None:
             path
             and not path.startswith((".vibesys/", *AGENT_CONFIG_DIRS))
             and path
-            not in ("README.md", "UPSTREAM-README.md", "CLAUDE.md", "AGENTS.md")
-            and not path.startswith(("progress/", "eval/", "logs/", "post-run-ab/"))
+            not in (
+                "README.md",
+                "UPSTREAM-README.md",
+                "CLAUDE.md",
+                "AGENTS.md",
+                ".docker_metadata.json",
+            )
+            and not path.startswith(("roadmap/", "progress/", "eval/", "logs/", "post-run-ab/"))
             and path not in expected
             and not allowed(path)
             and not any(path == sub or path.startswith(sub + "/") for sub in submodules)
