@@ -1,0 +1,13 @@
+[workspace]
+resolver = "2"
+members = [
+  "examples/echo",
+  "libs/rpcstack", "libs/rpcstack-wire", "libs/rpcstack-tonic", "libs/rpcstack-sched",
+  "libs/tonic/tonic", "libs/tonic/tonic-build", "libs/hyper", "libs/tokio/tokio",
+  "libs/multiqueue-prio-queue",
+]
+default-members = ["libs/rpcstack", "libs/rpcstack-wire", "libs/rpcstack-tonic", "libs/rpcstack-sched"]
+
+[patch.crates-io]
+tokio = { path = "libs/tokio/tokio" }
+hyper = { path = "libs/hyper" }

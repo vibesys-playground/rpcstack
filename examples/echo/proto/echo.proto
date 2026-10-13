@@ -1,0 +1,5 @@
+syntax = "proto3";
+package echo;
+service Echo { rpc Call(Input) returns (Output); }
+message Input { bool reject = 1; }
+message Output { uint64 value = 1; }

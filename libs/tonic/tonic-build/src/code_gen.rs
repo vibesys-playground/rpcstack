@@ -1,0 +1,171 @@
+use std::collections::HashSet;
+
+use proc_macro2::TokenStream;
+use quote::ToTokens;
+
+use crate::{Attributes, Service};
+
+/// Parsed path to the default RPC stack hooks type emitted in generated clients and servers.
+#[derive(Clone)]
+pub(crate) struct DefaultHooksPath(pub(crate) syn::Path);
+
+impl DefaultHooksPath {
+    pub(crate) fn as_path(&self) -> &syn::Path {
+        &self.0
+    }
+}
+
+impl Default for DefaultHooksPath {
+    fn default() -> Self {
+        Self(syn::parse_quote!(tonic::rpcstack::noop::NoopHooks))
+    }
+}
+
+impl std::fmt::Debug for DefaultHooksPath {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("DefaultHooksPath")
+            .field(&self.0.to_token_stream().to_string())
+            .finish()
+    }
+}
+
+/// Builder for the generic code generation of server and clients.
+#[derive(Debug)]
+pub struct CodeGenBuilder {
+    emit_package: bool,
+    compile_well_known_types: bool,
+    attributes: Attributes,
+    build_transport: bool,
+    disable_comments: HashSet<String>,
+    use_arc_self: bool,
+    generate_default_stubs: bool,
+    /// RPC stack-specific.
+    /// Toggles whether we enable RPC clients to know if they're being used
+    /// in a RPC handler -- their parent RPC.
+    enable_parent_rpc_ctx: bool,
+    default_hooks_path: DefaultHooksPath,
+}
+
+impl CodeGenBuilder {
+    /// Create a new code gen builder with default options.
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    /// Enable code generation to emit the package name.
+    pub fn emit_package(&mut self, enable: bool) -> &mut Self {
+        self.emit_package = enable;
+        self
+    }
+
+    /// Attributes that will be added to `mod` and `struct` items.
+    ///
+    /// Reference [`Attributes`] for more information.
+    pub fn attributes(&mut self, attributes: Attributes) -> &mut Self {
+        self.attributes = attributes;
+        self
+    }
+
+    /// Enable transport code to be generated, this requires `tonic`'s `transport`
+    /// feature.
+    ///
+    /// This allows codegen level control of generating the transport code and
+    /// is a work around when other crates in a workspace enable this feature.
+    pub fn build_transport(&mut self, build_transport: bool) -> &mut Self {
+        self.build_transport = build_transport;
+        self
+    }
+
+    /// Enable compiling well knonw types, this will force codegen to not
+    /// use the well known types from `prost-types`.
+    pub fn compile_well_known_types(&mut self, enable: bool) -> &mut Self {
+        self.compile_well_known_types = enable;
+        self
+    }
+
+    /// Disable comments based on a proto path.
+    pub fn disable_comments(&mut self, disable_comments: HashSet<String>) -> &mut Self {
+        self.disable_comments = disable_comments;
+        self
+    }
+
+    /// Emit `Arc<Self>` instead of `&self` in service trait.
+    pub fn use_arc_self(&mut self, enable: bool) -> &mut Self {
+        self.use_arc_self = enable;
+        self
+    }
+
+    /// Enable or disable returning automatic unimplemented gRPC error code for generated traits.
+    pub fn generate_default_stubs(&mut self, generate_default_stubs: bool) -> &mut Self {
+        self.generate_default_stubs = generate_default_stubs;
+        self
+    }
+
+    /// Enable or disable parent RPC support in RPC clients. Requires server-side code
+    /// modification.
+    pub fn enable_parent_rpc_context(&mut self, enable_parent_rpc_ctx: bool) -> &mut Self {
+        self.enable_parent_rpc_ctx = enable_parent_rpc_ctx;
+        self
+    }
+
+    /// Set the default RPC stack hooks type path emitted in generated clients and servers.
+    ///
+    /// This defaults to `tonic::rpcstack::noop::NoopHooks`.
+    pub fn default_hooks_path(&mut self, default_hooks_path: syn::Path) -> &mut Self {
+        self.default_hooks_path = DefaultHooksPath(default_hooks_path);
+        self
+    }
+
+    /// Generate client code based on `Service`.
+    ///
+    /// This takes some `Service` and will generate a `TokenStream` that contains
+    /// a public module with the generated client.
+    pub fn generate_client(&self, service: &impl Service, proto_path: &str) -> TokenStream {
+        crate::client::generate_internal(
+            service,
+            self.emit_package,
+            proto_path,
+            self.compile_well_known_types,
+            self.build_transport,
+            self.enable_parent_rpc_ctx,
+            self.default_hooks_path.as_path(),
+            &self.attributes,
+            &self.disable_comments,
+        )
+    }
+
+    /// Generate server code based on `Service`.
+    ///
+    /// This takes some `Service` and will generate a `TokenStream` that contains
+    /// a public module with the generated client.
+    pub fn generate_server(&self, service: &impl Service, proto_path: &str) -> TokenStream {
+        crate::server::generate_internal(
+            service,
+            self.emit_package,
+            proto_path,
+            self.compile_well_known_types,
+            self.enable_parent_rpc_ctx,
+            self.default_hooks_path.as_path(),
+            &self.attributes,
+            &self.disable_comments,
+            self.use_arc_self,
+            self.generate_default_stubs,
+        )
+    }
+}
+
+impl Default for CodeGenBuilder {
+    fn default() -> Self {
+        Self {
+            emit_package: true,
+            compile_well_known_types: false,
+            attributes: Attributes::default(),
+            build_transport: true,
+            disable_comments: HashSet::default(),
+            use_arc_self: false,
+            generate_default_stubs: false,
+            enable_parent_rpc_ctx: false,
+            default_hooks_path: DefaultHooksPath::default(),
+        }
+    }
+}
