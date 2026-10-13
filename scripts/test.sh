@@ -15,3 +15,4 @@ cargo test --locked -p rpcstack-dagor
 cargo test --locked -p rpcstack-breakwater
 cargo test --locked -p rpcstack-hedged
 cargo test --locked -p rpcstack-c3
+cargo test --locked -p rpcstack-aequitas

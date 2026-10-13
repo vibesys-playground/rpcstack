@@ -1800,6 +1800,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "rpcstack-aequitas"
+version = "0.1.0"
+dependencies = [
+ "rand 0.8.8",
+ "rpcstack-call",
+ "tokio",
+ "tonic",
+]
+
+[[package]]
 name = "rpcstack-breakwater"
 version = "0.1.0"
 dependencies = [
