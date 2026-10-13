@@ -18,6 +18,11 @@ transport or scheduling policies can be implemented faithfully inside Tonic/Toki
 | Racing equivalent attempts | Own multiple `execute` futures; drop losing futures | Delayed hedging |
 | Service queue and service-duration feedback | Explicit `rpcstack_call::Stage` around the measured work | C3 |
 | Scheduling opaque task priorities | `x-rpcstack-scheduling`, vendored runtime's queue interface | Cooperative TailClipper, Masa |
+| Synchronization queue age and cumulative waiting budgets | `rpcstack_call::queue::{QueueGate, QueueBudget}` | Protego |
+| Typed handler reservations and asymmetric stealing | Explicit async handler scheduler and typed call tickets | Perséphone/DARC |
+| Central bounded backend dispatch | Owned forwarding with remote completion accounting | R2P2 JBSQ(n) |
+| Retry identity and durable result replay | Call tickets plus atomic handler transaction boundary | RIFL |
+| Resource-aware safe cancellation | Explicit sensors/progress plus `rpcstack_call::cancellation::Cancellation` | Atropos |
 | Network QoS and packet-level completion observations | Custom send adapter with explicit typed measurements | Aequitas controller; stock adapter still missing |
 
 Synchronous hooks must not block to await credit, sleep, or make a control-plane
@@ -82,3 +87,23 @@ For VibeSys, this is a tested set of extension mechanisms and examples, not an
 unrestricted promise. A proposed optimization should name its required sensor,
 actuator and lifetime; an unavailable one becomes an explicit framework/transport
 change instead of a superficially similar policy.
+
+## Lessons from the second paper study
+
+Protego needed an instrumented synchronization queue and a budget that follows
+one request across several locks. Atropos needed a persistent cancellation signal
+and an application-owned cleanup boundary. Those are generic additions to
+`rpcstack-call`; their control algorithms remain optional examples.
+
+Perséphone can reserve async handler slots, but CPU-core isolation still needs a
+different executor. R2P2's bounded dispatch must account for actual backend
+completion: dropping a caller cannot free capacity while backend work continues.
+Its example quarantines uncertain backend outcomes until an explicit drain/reset.
+RIFL requires effects and results to commit atomically in the same storage domain;
+no hook can make unrelated external effects exactly-once. Its SQLite adapter tests
+this boundary across process exits and retries. Atropos requires application
+resource/progress measurements and safe cancellation, not just lifecycle hooks.
+
+These distinctions are part of the implementation contract an agent must check
+before selecting or composing a policy. The examples are tested mechanism adapters,
+not claims of reproducing specialized runtimes or published benchmark results.

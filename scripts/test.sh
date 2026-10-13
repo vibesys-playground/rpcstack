@@ -28,3 +28,4 @@ cargo test --locked -p rpcstack-protego
 cargo test --locked -p rpcstack-persephone
 cargo test --locked -p rpcstack-r2p2
 cargo test --locked -p rpcstack-rifl
+cargo test --locked -p rpcstack-atropos
