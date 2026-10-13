@@ -1,0 +1,5 @@
+syntax = "proto3";
+package probe;
+service Probe { rpc Call(Input) returns (Output); }
+message Input { uint64 delay_ms = 1; bool fail = 2; }
+message Output { string wire = 1; }

@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+  "examples/policies/dagor", "examples/testkit",
   "libs/rpcstack-call",
   "examples/echo",
   "libs/rpcstack", "libs/rpcstack-wire", "libs/rpcstack-tonic", "libs/rpcstack-sched",
