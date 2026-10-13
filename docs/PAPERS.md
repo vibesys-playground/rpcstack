@@ -97,3 +97,8 @@ and the substrate capabilities that these tests do not establish.
   [implementation](../examples/policies/r2p2), centralized JBSQ(n) RPC dispatch
   with bounded backend queues and completion accounting. Uses gRPC forwarding;
   does not implement R2P2's UDP packet format, direct replies, or P4 offload.
+- [RIFL, SOSP 2015](https://web.stanford.edu/~ouster/cgi-bin/papers/rifl.pdf):
+  [implementation](../examples/policies/rifl), durable RPC identities/results,
+  transactional effects, retry rendezvous, acknowledgments and lease GC. Includes
+  process-exit tests before/after commit and lost-response gRPC retry. Uses a
+  single SQLite shard; does not reproduce RAMCloud replication or multi-shard 2PC.

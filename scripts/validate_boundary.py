@@ -13,7 +13,7 @@ allowed = {
     "rpcstack-echo", "rajomon", "tailclipper", "paper-rpc",
     "masa", "masa-core", "masa-policy", "masa-semantics",
     "rpcstack-dagor", "rpcstack-breakwater", "rpcstack-hedged", "rpcstack-c3",
-    "rpcstack-r2p2", "rpcstack-persephone", "rpcstack-protego", "rpcstack-aequitas", "rpcstack-testkit", "rpcstack-policy-composition",
+    "rpcstack-rifl", "rpcstack-r2p2", "rpcstack-persephone", "rpcstack-protego", "rpcstack-aequitas", "rpcstack-testkit", "rpcstack-policy-composition",
 }
 for package in metadata["packages"]:
     if package["name"].startswith("masa"):
