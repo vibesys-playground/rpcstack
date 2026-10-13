@@ -24,3 +24,4 @@ cargo test --locked -p rpcstack-c3
 cargo test --locked -p rpcstack-aequitas
 ./scripts/test_external_workspace.sh
 cargo test --locked -p rpcstack-policy-composition
+cargo test --locked -p rpcstack-protego

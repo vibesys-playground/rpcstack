@@ -84,6 +84,14 @@ impl Controller {
             started: AtomicBool::new(false),
         })
     }
+    /// Reuse the credit distribution/control channel with an external controller.
+    /// Do not call `start`/`tick` when another policy owns the pool size.
+    /// Shrinking preserves credits occupied by executing calls until completion.
+    pub fn set_total(&self, total: u64) {
+        let mut state = self.state.lock().unwrap();
+        state.total = total.clamp(1, self.config.maximum);
+        Self::allocate(&mut state, None);
+    }
     pub fn total(&self) -> u64 {
         self.state.lock().unwrap().total
     }

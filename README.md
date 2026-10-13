@@ -23,8 +23,8 @@ on them. See [paper implementations](docs/PAPERS.md) for scope and fidelity.
 The optional [Masa composition example](examples/masa/README.md) ports the original
 policy stack and semantic tests without adding a framework dependency.
 The [VibeSys implementation guide](docs/VIBESYS.md) maps policy requirements to
-extension points, test evidence and remaining substrate gaps. The unmerged
-`review/policy-corpus` branch collects all examples for evaluation.
+extension points, test evidence and remaining substrate gaps. The original policy corpus is merged on `main`; additional paper examples
+are documented in [docs/PAPERS.md](docs/PAPERS.md).
 The built-in queue implementations remain part of the scheduling framework; none
 selects an RPC policy automatically.
 

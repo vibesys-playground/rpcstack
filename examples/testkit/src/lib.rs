@@ -116,3 +116,53 @@ pub fn input() -> pb::Input {
         fail: false,
     }
 }
+
+/// Supply an actual application handler while retaining generated gRPC hooks.
+/// Policies use this to test locking, persistence, and cancellation inside handlers.
+pub async fn serve_handler<S, F, Fut>(
+    context: rpcstack_tonic::ServerContext<S>,
+    handler: F,
+) -> Running
+where
+    S: rpcstack::ModuleStack,
+    F: Fn(Request<pb::Input>) -> Fut + Send + Sync + 'static,
+    Fut: std::future::Future<Output = Result<Response<pb::Output>, Status>> + Send + 'static,
+{
+    struct Handler<F> {
+        function: F,
+        calls: Arc<AtomicUsize>,
+    }
+    #[tonic::async_trait]
+    impl<F, Fut> pb::probe_server::Probe for Handler<F>
+    where
+        F: Fn(Request<pb::Input>) -> Fut + Send + Sync + 'static,
+        Fut: std::future::Future<Output = Result<Response<pb::Output>, Status>> + Send + 'static,
+    {
+        async fn call(&self, request: Request<pb::Input>) -> Result<Response<pb::Output>, Status> {
+            self.calls.fetch_add(1, Ordering::Relaxed);
+            (self.function)(request).await
+        }
+    }
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = format!("http://{}", listener.local_addr().unwrap());
+    let calls = Arc::new(AtomicUsize::new(0));
+    let service = Handler {
+        function: handler,
+        calls: calls.clone(),
+    };
+    let task = tokio::spawn(async move {
+        tonic::transport::Server::builder()
+            .add_service(pb::probe_server::ProbeServer::<
+                _,
+                rpcstack_tonic::PolicyHooks<S>,
+            >::with_server_context(service, context))
+            .serve_with_incoming(tokio_stream::wrappers::TcpListenerStream::new(listener))
+            .await
+            .unwrap();
+    });
+    Running {
+        address,
+        calls,
+        task,
+    }
+}

@@ -1998,6 +1998,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "rpcstack-protego"
+version = "0.1.0"
+dependencies = [
+ "rpcstack",
+ "rpcstack-breakwater",
+ "rpcstack-call",
+ "rpcstack-testkit",
+ "rpcstack-tonic",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+]
+
+[[package]]
 name = "rpcstack-sched"
 version = "0.1.0"
 
