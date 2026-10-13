@@ -89,3 +89,7 @@ and the substrate capabilities that these tests do not establish.
   control and budgeted synchronization queues with live RPC rejection/recovery.
   Uses measured handler intervals and the existing gRPC credit channel; see its
   README for the distinctions from Shenango and the paper's credit RTT sensor.
+- [Perséphone/DARC, SOSP 2021](https://marioskogias.github.io/docs/persephone.pdf):
+  [implementation](../examples/policies/persephone), typed reservations, short-to-long
+  cycle stealing, spillway service, and runtime profiling. Enforces asynchronous
+  handler-slot scheduling, not dedicated CPU-core isolation or kernel bypass.
