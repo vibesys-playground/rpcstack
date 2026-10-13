@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 [dependencies]
+rpcstack-call = { path = "../../libs/rpcstack-call" }
 rpcstack = { path = "../../libs/rpcstack" }
 rpcstack-tonic = { path = "../../libs/rpcstack-tonic" }
 tonic = { path = "../../libs/tonic/tonic" }
