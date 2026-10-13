@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+  "examples/masa/masa", "examples/masa/masa-core", "examples/masa/masa-policy", "examples/masa/masa-semantics",
   "examples/policies/rajomon", "examples/policies/tailclipper", "examples/paper-rpc",
   "examples/echo",
   "libs/rpcstack", "libs/rpcstack-wire", "libs/rpcstack-tonic", "libs/rpcstack-sched",

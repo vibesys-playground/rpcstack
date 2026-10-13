@@ -1123,6 +1123,64 @@ dependencies = [
 ]
 
 [[package]]
+name = "masa"
+version = "0.1.0"
+dependencies = [
+ "hyper",
+ "masa-core",
+ "masa-policy",
+ "tokio",
+ "tonic",
+ "tower",
+]
+
+[[package]]
+name = "masa-core"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "http",
+ "log",
+ "rpcstack-wire",
+ "serde",
+ "serde_json",
+ "tower-service",
+]
+
+[[package]]
+name = "masa-policy"
+version = "0.1.0"
+dependencies = [
+ "dashmap",
+ "http",
+ "log",
+ "masa-core",
+ "once_cell",
+ "rajomon",
+ "rand 0.8.8",
+ "rand_distr",
+ "rpcstack",
+ "rpcstack-tonic",
+ "rpcstack-wire",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tonic",
+]
+
+[[package]]
+name = "masa-semantics"
+version = "0.1.0"
+dependencies = [
+ "http",
+ "masa",
+ "masa-core",
+ "rand 0.8.8",
+ "tokio",
+ "tonic",
+]
+
+[[package]]
 name = "matchers"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
