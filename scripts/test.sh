@@ -10,3 +10,4 @@ cargo test --locked -p hyper --lib --features full h2_priority_tests
 cargo test --locked -p tokio --test rpcstack_priority --features full,sched_prio
 cargo test --locked -p rpcstack-echo
 cargo test --locked -p rpcstack-echo --features priority
+cargo test --locked -p rpcstack-call

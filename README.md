@@ -11,6 +11,7 @@ wire metadata. Applications choose their module stack explicitly.
 | `libs/rpcstack` | Module lifecycle, composition, typed state and decision points |
 | `libs/rpcstack-wire` | Independent header-section codec and opaque scheduling header |
 | `libs/rpcstack-tonic` | Runs a module stack through Tonic's request hooks |
+| `libs/rpcstack-call` | Async preparation, attempt lifetimes, bounded stage measurements |
 | `libs/rpcstack-sched` | Task metadata, queue interface, built-in queues, custom queue slot |
 | `libs/tonic`, `libs/hyper`, `libs/tokio` | Vendored runtime/transport support for these mechanisms |
 | `libs/multiqueue-prio-queue` | Optional concurrent queue backend |
@@ -83,3 +84,9 @@ denied across the scheduling configurations. Upstream runtime test suites are
 retained but are not claimed to be exhaustively validated by these scripts.
 
 Source attribution and extraction details are in [SOURCE.md](SOURCE.md).
+
+Server-local controllers can be injected with
+`ServerContext::try_with_resources` and generated `with_server_context` constructors.
+For asynchronous admission, pacing, or replica attempts, see
+[`rpcstack-call`](libs/rpcstack-call/README.md). These mechanisms do not prescribe
+any admission or routing policy.

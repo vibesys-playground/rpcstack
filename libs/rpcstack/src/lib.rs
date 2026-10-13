@@ -23,7 +23,7 @@ pub mod wire;
 
 pub use extensions::{ChildState, DecisionClosed, Extensions, Proposal, Proposals};
 pub use module::{
-    build_server, ChildOutcome, Early, MissingDependency, Module, ModuleDecl, ModuleServer,
-    ModuleStack, Outcome, Rejection, Requires, ServerInit, Stack,
+    build_server, build_server_with, ChildOutcome, Early, MissingDependency, Module, ModuleDecl,
+    ModuleServer, ModuleStack, Outcome, Rejection, Requires, ServerInit, Stack,
 };
 pub use wire::{describe, peek, EncodedSection, WireError, WireIn, WireOut, HEADER_NAME};

@@ -1800,6 +1800,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "rpcstack-call"
+version = "0.1.0"
+dependencies = [
+ "tokio",
+ "tonic",
+]
+
+[[package]]
 name = "rpcstack-echo"
 version = "0.1.0"
 dependencies = [
