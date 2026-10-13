@@ -33,7 +33,7 @@ https://github.com/vic-lsh/masa/pull/104, with framework dependencies redirected
 The queue correction is a mechanism fix: vacancies must admit waiting runnable tasks
 without waiting for an entire old round-robin batch to drain.
 
-## Five additional published policies
+## Earlier policy studies
 
 | Paper | Implementation and inspected code | Implemented scope | Fidelity limit |
 | --- | --- | --- | --- |
@@ -102,3 +102,9 @@ and the substrate capabilities that these tests do not establish.
   transactional effects, retry rendezvous, acknowledgments and lease GC. Includes
   process-exit tests before/after commit and lost-response gRPC retry. Uses a
   single SQLite shard; does not reproduce RAMCloud replication or multi-shard 2PC.
+- [Atropos, SOSP 2025](https://yigonghu.github.io/paper/sosp25-atropos.pdf):
+  [implementation](../examples/policies/atropos), resource attribution, estimated
+  future gain, Pareto/weighted selection and targeted cancellation of RPC handlers.
+  This is an application-overload paper adapted to RPC execution, not an RPC wire
+  protocol. Explicit sensors/progress and safe cooperative cancellation are required;
+  the original application patches and automatic instrumentation are not reproduced.

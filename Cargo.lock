@@ -1948,6 +1948,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "rpcstack-atropos"
+version = "0.1.0"
+dependencies = [
+ "rpcstack-call",
+ "rpcstack-testkit",
+ "rpcstack-tonic",
+ "tokio",
+ "tonic",
+]
+
+[[package]]
 name = "rpcstack-breakwater"
 version = "0.1.0"
 dependencies = [

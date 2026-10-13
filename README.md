@@ -11,7 +11,6 @@ wire metadata. Applications choose their module stack explicitly.
 | `libs/rpcstack` | Module lifecycle, composition, typed state and decision points |
 | `libs/rpcstack-wire` | Independent header-section codec and opaque scheduling header |
 | `libs/rpcstack-tonic` | Runs a module stack through Tonic's request hooks |
-| `libs/rpcstack-call` | Async preparation, attempt lifetimes, bounded stage measurements |
 | `libs/rpcstack-call` | Async admission/pacing tickets, owned attempts, deadlines and measured service stages |
 | `libs/rpcstack-sched` | Task metadata, queue interface, built-in queues, custom queue slot |
 | `libs/tonic`, `libs/hyper`, `libs/tokio` | Vendored runtime/transport support for these mechanisms |

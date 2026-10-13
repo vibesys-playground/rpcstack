@@ -13,3 +13,14 @@ safe. It measures a wrapped future's wall time, not CPU execution time.
 
 Transport cancellation means dropping the future. This does not roll back remote
 side effects or guarantee an already executing remote handler stops immediately.
+
+`queue::QueueGate` instruments a FIFO synchronization queue. Pass the same mutable
+`QueueBudget` through sequential acquisitions to account for cumulative waiting,
+reject excessive oldest-wait delay and bound stalled waiting. Holding/service time
+is not deducted from the queue budget. Protego demonstrates this boundary.
+
+`cancellation::Cancellation` supplies a cloneable sticky cancellation signal.
+`run` races an explicitly cancellation-safe future against that signal and drops
+its owned resources on cancellation. Applications may instead await `cancelled`
+and invoke their own rollback. Atropos demonstrates resource-aware selection;
+the framework does not choose which calls to cancel or declare side effects safe.
