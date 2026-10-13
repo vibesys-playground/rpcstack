@@ -16,8 +16,8 @@ wire metadata. Applications choose their module stack explicitly.
 | `libs/multiqueue-prio-queue` | Optional concurrent queue backend |
 | `examples/echo` | Small two-hop demonstration and transport regression test |
 
-There are no application-specific policy stacks, budget/deadline implementations,
-admission controllers, microservice benchmark applications, or experiment harnesses.
+Optional paper policies live under `examples/policies`; the framework never depends
+on them. See [paper implementations](docs/PAPERS.md) for scope and fidelity.
 The built-in queue implementations remain part of the scheduling framework; none
 selects an RPC policy automatically.
 

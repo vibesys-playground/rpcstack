@@ -1332,6 +1332,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d05e27ee213611ffe7d6348b942e8f942b37114c00cc03cec254295a4a17852e"
 
 [[package]]
+name = "paper-rpc"
+version = "0.1.0"
+dependencies = [
+ "prost",
+ "rajomon",
+ "rpcstack",
+ "rpcstack-tonic",
+ "tailclipper",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tonic-build",
+]
+
+[[package]]
 name = "parking_lot"
 version = "0.12.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1659,6 +1674,24 @@ name = "r-efi"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
+
+[[package]]
+name = "rajomon"
+version = "0.1.0"
+dependencies = [
+ "dashmap",
+ "http",
+ "log",
+ "once_cell",
+ "rand 0.8.8",
+ "rand_distr",
+ "rpcstack",
+ "rpcstack-tonic",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tonic",
+]
 
 [[package]]
 name = "rand"
@@ -2140,6 +2173,19 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.9",
+]
+
+[[package]]
+name = "tailclipper"
+version = "0.1.0"
+dependencies = [
+ "http",
+ "rpcstack",
+ "rpcstack-tonic",
+ "rpcstack-wire",
+ "serde",
+ "tokio",
+ "tonic",
 ]
 
 [[package]]
