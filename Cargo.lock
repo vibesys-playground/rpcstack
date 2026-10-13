@@ -1800,6 +1800,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "rpcstack-breakwater"
+version = "0.1.0"
+dependencies = [
+ "async-stream",
+ "futures-core",
+ "prost",
+ "rand 0.8.8",
+ "rpcstack",
+ "rpcstack-call",
+ "rpcstack-testkit",
+ "rpcstack-tonic",
+ "serde",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tonic-build",
+]
+
+[[package]]
 name = "rpcstack-call"
 version = "0.1.0"
 dependencies = [
