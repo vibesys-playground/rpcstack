@@ -1808,6 +1808,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "rpcstack-dagor"
+version = "0.1.0"
+dependencies = [
+ "rpcstack",
+ "rpcstack-testkit",
+ "rpcstack-tonic",
+ "serde",
+ "tokio",
+ "tonic",
+]
+
+[[package]]
 name = "rpcstack-echo"
 version = "0.1.0"
 dependencies = [
@@ -1824,6 +1836,19 @@ dependencies = [
 [[package]]
 name = "rpcstack-sched"
 version = "0.1.0"
+
+[[package]]
+name = "rpcstack-testkit"
+version = "0.1.0"
+dependencies = [
+ "prost",
+ "rpcstack",
+ "rpcstack-tonic",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tonic-build",
+]
 
 [[package]]
 name = "rpcstack-tonic"
