@@ -8,7 +8,7 @@ root = Path(__file__).resolve().parents[1]
 metadata = json.loads(subprocess.check_output(
     ["cargo", "metadata", "--locked", "--format-version", "1"], cwd=root))
 allowed = {"rpcstack", "rpcstack-wire", "rpcstack-tonic", "rpcstack-sched",
-           "tonic", "tonic-build", "hyper", "tokio", "multiqueue-prio-queue", "rpcstack-echo", "rpcstack-call", "rpcstack-dagor", "rpcstack-testkit"}
+           "tonic", "tonic-build", "hyper", "tokio", "multiqueue-prio-queue", "rpcstack-echo", "rpcstack-call", "rpcstack-dagor", "rpcstack-testkit", "rpcstack-breakwater"}
 for package in metadata["packages"]:
     assert not package["name"].startswith("masa"), package["name"]
     if package["source"] is not None:
