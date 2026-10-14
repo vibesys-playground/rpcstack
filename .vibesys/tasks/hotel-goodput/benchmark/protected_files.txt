@@ -206,6 +206,7 @@
 318a63bffba1c327313c8126b507dd5af3b023c9 examples/masa/masa-core/src/priority.rs
 31a902733780afe01c5f5f25abaad872e8fe461b libs/hyper/docs/ISSUES.md
 31ab8dea5dd2671d274f2143056199f1cf7f42b0 libs/tokio/tokio/src/lib.rs
+32442049e6be04b12422d4e7fe12e0c4ca5c8707 examples/hotel/tests/test_scope.py
 328f47bd3624ea2873d8aa3bc9ece77c369df990 libs/hyper/README.md
 32aaa1f771b3cb2df7c10bfcfb426ac084a12e82 libs/tokio/tokio/tests/tcp_split.rs
 32b8d2852852c91e458cc34e3f59a77d94100bac libs/hyper/docs/CODE_OF_CONDUCT.md

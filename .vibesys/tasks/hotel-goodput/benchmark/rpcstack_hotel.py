@@ -213,9 +213,8 @@ def write_manifest(root: Path) -> None:
 def check_scope(root: Path) -> None:
     """Fail when the candidate changed a file outside the agent-owned slots.
 
-    Every protected baseline file must be unchanged, and no new non-ignored file
-    may appear beside them. Only top-level entries that exist at the baseline
-    are checked, so files VibeSys itself adds at the repository root are fine.
+    Every protected baseline file must be unchanged. New non-ignored files
+    must be in an editable slot or the explicit runtime-artifact allowlist.
     """
     expected: dict[str, str] = {}
     submodules: list[str] = []
@@ -236,6 +235,7 @@ def check_scope(root: Path) -> None:
     for path in present.split("\0"):
         if (
             path
+            and ((root / path).exists() or (root / path).is_symlink())
             and not path.startswith((".vibesys/", *AGENT_CONFIG_DIRS))
             and path
             not in (
