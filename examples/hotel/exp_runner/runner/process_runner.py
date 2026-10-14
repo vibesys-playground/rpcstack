@@ -41,6 +41,15 @@ def local_configs(hotel: dict, generator: dict) -> tuple[dict, dict]:
     return hotel, generator
 
 
+def check_ports_available(ports: list[int]) -> None:
+    """Reject active listeners while allowing a previous run's TIME_WAIT sockets."""
+    for port in ports:
+        with socket.socket() as probe:
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            probe.bind(("127.0.0.1", port))
+            probe.listen(1)
+
+
 class Processes:
     """Own only the child process groups created by this experiment."""
 
@@ -135,9 +144,7 @@ def run_process(
         + [11003, 11004, 11005]
     )
     # Refuse to run into another deployment rather than terminating it.
-    for port in ports:
-        with socket.socket() as probe:
-            probe.bind(("127.0.0.1", port))
+    check_ports_available(ports)
     for iteration in range(config.get_repeats()):
         out = config.out_dir / str(iteration) / "rpcstack"
         out.mkdir(parents=True, exist_ok=True)
