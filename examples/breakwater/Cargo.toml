@@ -1,0 +1,22 @@
+[package]
+name = "rpcstack-breakwater"
+version = "0.1.0"
+edition = "2021"
+publish = false
+[dependencies]
+rpcstack = { path = "../../libs/rpcstack" }
+rpcstack-call = { path = "../../libs/rpcstack-call" }
+rpcstack-tonic = { path = "../../libs/rpcstack-tonic" }
+tonic = { path = "../../libs/tonic/tonic" }
+tokio = { path = "../../libs/tokio/tokio", features = ["rt", "time", "sync"] }
+serde = { version = "1", features = ["derive"] }
+rand = "0.8"
+prost = "0.12"
+async-stream = "0.3"
+futures-core = "0.3"
+[build-dependencies]
+tonic-build = { path = "../../libs/tonic/tonic-build" }
+[dev-dependencies]
+rpcstack-testkit = { path = "../testkit" }
+tokio = { path = "../../libs/tokio/tokio", features = ["macros", "rt", "time", "net", "sync"] }
+tokio-stream = { version = "=0.1.15", features = ["net"] }

@@ -11,7 +11,9 @@ cargo test --locked -p tokio --test rpcstack_priority --features full,sched_prio
 cargo test --locked -p rpcstack-echo
 cargo test --locked -p rpcstack-echo --features priority
 cargo test --locked -p rajomon -p tailclipper
-cargo test --locked -p paper-rpc --features orf
+./scripts/test_external_queue.sh
+./examples/tailclipper/cargo.sh test --locked -p rpcstack-sched --features sched_custom
+./examples/tailclipper/cargo.sh test --locked -p rpcstack-policy-composition --features orf --test arrival_price
 cargo test --locked -p masa -p masa-core -p masa-policy -p masa-semantics
 cargo test --locked -p masa-policy --features sched_slo,abort_slo,signal_slack,est_mean_var,ac_pred,trace_queue_latency
 cargo test --locked -p masa-semantics --features sched_slo,abort_slo,signal_slack,est_mean_var,ac_pred

@@ -1,0 +1,16 @@
+[package]
+name = "rpcstack-c3"
+version = "0.1.0"
+edition = "2021"
+publish = false
+[dependencies]
+rpcstack = { path = "../../libs/rpcstack" }
+rpcstack-call = { path = "../../libs/rpcstack-call" }
+tonic = { path = "../../libs/tonic/tonic" }
+tokio = { path = "../../libs/tokio/tokio", features = ["time"] }
+serde = { version = "1", features = ["derive"] }
+rand = "0.8"
+[dev-dependencies]
+rpcstack-tonic = { path = "../../libs/rpcstack-tonic" }
+rpcstack-testkit = { path = "../testkit" }
+tokio = { path = "../../libs/tokio/tokio", features = ["macros", "rt", "test-util"] }

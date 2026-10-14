@@ -1,3 +1,9 @@
+#[cfg(feature = "sched_tailclipper")]
+const _: () = assert!(
+    option_env!("RPCSTACK_QUEUE_SOURCE").is_some(),
+    "sched_tailclipper requires an external queue; build through examples/tailclipper/cargo.sh"
+);
+
 pub use masa_core::{
     time_now, Context, FutureSpan, LatencyDistribution, MethodId, PriorityHint,
     ORACLE_CHILD_WORK_US_HEADER, ORACLE_REMAINING_AFTER_US_HEADER,

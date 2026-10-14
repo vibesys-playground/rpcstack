@@ -41,3 +41,15 @@ selection. This is a composition and semantics reference, not a reproduction of
 Masa's benchmark deployments. Cooperative runtime hooks cannot forcibly preempt
 arbitrary Rust code. The full source project's benchmark applications, deployment
 scripts and experiments are intentionally not part of this example.
+
+## TailClipper scheduling
+
+The optional `sched_tailclipper` mode uses the queue owned by the sibling
+[TailClipper example](../tailclipper/README.md). Build from the repository root:
+
+```sh
+./examples/tailclipper/cargo.sh check -p masa --features sched_tailclipper
+```
+
+The feature enables the generic `tokio/sched_custom` integration. It requires an
+explicit external queue source rather than a paper-specific runtime feature.

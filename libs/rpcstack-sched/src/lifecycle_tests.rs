@@ -11,7 +11,6 @@ use std::time::{Duration, Instant};
 
 use crate::builtin::fifo::FifoQueue;
 use crate::builtin::prio_heap::BinaryHeapQueue;
-use crate::builtin::tailclipper::BinaryHeapRoundRobinQueue;
 use crate::custom;
 use crate::{Meta, PollOutcome, RunQueue, TaskView};
 
@@ -251,14 +250,6 @@ fn builtin_queues_ignore_callbacks() {
     assert_eq!(
         pop_order::<BinaryHeapQueue<u64>>(true),
         pop_order::<BinaryHeapQueue<u64>>(false)
-    );
-    assert_eq!(
-        pop_order::<BinaryHeapRoundRobinQueue<u64, false>>(true),
-        pop_order::<BinaryHeapRoundRobinQueue<u64, false>>(false)
-    );
-    assert_eq!(
-        pop_order::<BinaryHeapRoundRobinQueue<u64, true>>(true),
-        pop_order::<BinaryHeapRoundRobinQueue<u64, true>>(false)
     );
     assert_eq!(
         pop_order::<custom::Queue<u64>>(true),
