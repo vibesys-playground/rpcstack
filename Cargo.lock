@@ -1437,21 +1437,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d05e27ee213611ffe7d6348b942e8f942b37114c00cc03cec254295a4a17852e"
 
 [[package]]
-name = "paper-rpc"
-version = "0.1.0"
-dependencies = [
- "prost",
- "rajomon",
- "rpcstack",
- "rpcstack-tonic",
- "tailclipper",
- "tokio",
- "tokio-stream",
- "tonic",
- "tonic-build",
-]
-
-[[package]]
 name = "parking_lot"
 version = "0.12.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2054,6 +2039,8 @@ version = "0.1.0"
 dependencies = [
  "masa-core",
  "masa-policy",
+ "prost",
+ "rajomon",
  "rpcstack",
  "rpcstack-breakwater",
  "rpcstack-c3",
@@ -2061,9 +2048,11 @@ dependencies = [
  "rpcstack-dagor",
  "rpcstack-testkit",
  "rpcstack-tonic",
+ "tailclipper",
  "tokio",
  "tokio-stream",
  "tonic",
+ "tonic-build",
 ]
 
 [[package]]

@@ -17,7 +17,7 @@ tonic = { path = "../../../libs/tonic/tonic" }
 sched_slo = ["hyper/rpcstack", "tonic/rpcstack", "masa-core/sched_slo", "tokio/sched_prio", "masa-policy/sched_slo"]
 sched_mt = ["sched_slo", "tokio/sched_mt"]
 sched_mt_multiqueue = ["sched_mt", "tokio/sched_mt_multiqueue"]
-sched_tailclipper = ["hyper/rpcstack", "tonic/rpcstack", "masa-core/sched_tailclipper", "tokio/sched_prio", "tokio/tailclipper", "masa-policy/sched_tailclipper"]
+sched_tailclipper = ["hyper/rpcstack", "tonic/rpcstack", "masa-core/sched_tailclipper", "tokio/sched_prio", "tokio/sched_custom", "masa-policy/sched_tailclipper"]
 sched_fifo  = ["hyper/rpcstack", "tonic/rpcstack", "masa-core/sched_fifo",  "tokio/sched_fifo", "masa-policy/sched_fifo"]
 sched_oracle = ["hyper/rpcstack", "tonic/rpcstack", "masa-core/sched_oracle", "tokio/sched_prio", "masa-policy/sched_oracle"]
 sched_pred = ["masa-core/sched_pred", "sched_slo", "masa-policy/sched_pred"]

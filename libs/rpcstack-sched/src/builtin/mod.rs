@@ -8,4 +8,3 @@
 pub mod fifo;
 pub(crate) mod keyed;
 pub mod prio_heap;
-pub mod tailclipper;

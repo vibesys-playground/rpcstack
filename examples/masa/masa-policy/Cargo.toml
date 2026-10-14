@@ -9,7 +9,7 @@ rpcstack-wire = { path = "../../../libs/rpcstack-wire" }
 masa-core = { path = "../masa-core" }
 rpcstack = { path = "../../../libs/rpcstack" }
 rpcstack-tonic = { path = "../../../libs/rpcstack-tonic" }
-rajomon = { path = "../../policies/rajomon", optional = true }
+rajomon = { path = "../../rajomon", optional = true }
 tonic = { path = "../../../libs/tonic/tonic", default-features = false, features = ["transport"] }
 tokio = { path = "../../../libs/tokio/tokio", optional = true, features = ["rt"] }
 dashmap = "5.5"

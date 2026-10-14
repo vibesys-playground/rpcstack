@@ -17,15 +17,16 @@ wire metadata. Applications choose their module stack explicitly.
 | `libs/multiqueue-prio-queue` | Optional concurrent queue backend |
 | `examples/echo` | Small two-hop demonstration and transport regression test |
 
-Optional paper policies live under `examples/policies`; the framework never depends
-on them. See [paper implementations](docs/PAPERS.md) for scope and fidelity.
+Each paper implementation has its own folder directly under [`examples/`](examples/README.md);
+the framework never depends on a paper example. See [paper implementations](docs/PAPERS.md) for scope and fidelity.
 The optional [Masa composition example](examples/masa/README.md) ports the original
 policy stack and semantic tests without adding a framework dependency.
 The [VibeSys implementation guide](docs/VIBESYS.md) maps policy requirements to
 extension points, test evidence and remaining substrate gaps. The original policy corpus is merged on `main`; additional paper examples
 are documented in [docs/PAPERS.md](docs/PAPERS.md).
-The built-in queue implementations remain part of the scheduling framework; none
-selects an RPC policy automatically.
+The framework retains generic FIFO and priority queues. Paper-specific queues live
+with their examples; TailClipper supplies its queue through the generic external
+queue build interface described in [the scheduler guide](libs/rpcstack-sched/README.md).
 
 The vendored runtime crates are required: stock Tonic lacks these lifecycle hooks,
 and stock Tokio lacks the task metadata and pluggable queue integration. Their

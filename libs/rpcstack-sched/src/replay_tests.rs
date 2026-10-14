@@ -264,30 +264,6 @@ const PRIO_HEAP_POPS: &[&[i64]] = &[
     &[2, 3, 5, 6, 4, 1, -1, -1],
 ];
 
-const TAILCLIPPER_POPS_WITHOUT_INFRA_QUEUE: &[&[i64]] = &[
-    &[1, 3, 5, 2, 4, -1],
-    &[2, 4, 6, 3, 5, 1, -1],
-    &[2, 1, 3, 4, 5, -1, -1],
-    &[1, 2, 3, 4, -1],
-    &[-1, -1, 1, -1, 2],
-    &[8, 2, 4, 6, 7, 5, 3, 1, -1],
-    &[1, 2, 3, 4, 5, 6, 8, 10, 7, 9, -1],
-    &[1, 3, 7, 9, 6, 8, 5, 4, 2, 10, -1],
-    &[2, 1, 3, 4, 5, 6, -1, -1],
-];
-
-const TAILCLIPPER_POPS_WITH_INFRA_QUEUE: &[&[i64]] = &[
-    &[1, 3, 5, 2, 4, -1],
-    &[2, 4, 6, 5, 3, 1, -1],
-    &[2, 4, 1, 3, 5, -1, -1],
-    &[1, 2, 3, 4, -1],
-    &[-1, -1, 1, -1, 2],
-    &[8, 2, 4, 6, 7, 5, 3, 1, -1],
-    &[1, 2, 3, 4, 5, 6, 8, 10, 7, 9, -1],
-    &[1, 3, 7, 9, 6, 8, 5, 4, 2, 10, -1],
-    &[2, 3, 5, 6, 1, 4, -1, -1],
-];
-
 #[test]
 fn fifo_replay_scripts() {
     check::<crate::builtin::fifo::FifoQueue<u64>>(FIFO_POPS);
@@ -298,46 +274,20 @@ fn prio_heap_replay_scripts() {
     check::<crate::builtin::prio_heap::BinaryHeapQueue<u64>>(PRIO_HEAP_POPS);
 }
 
-#[test]
-fn tailclipper_replay_scripts_without_infra_queue() {
-    check::<crate::builtin::tailclipper::BinaryHeapRoundRobinQueue<u64, false>>(
-        TAILCLIPPER_POPS_WITHOUT_INFRA_QUEUE,
-    );
-}
-
-#[test]
-fn tailclipper_replay_scripts_with_infra_queue() {
-    check::<crate::builtin::tailclipper::BinaryHeapRoundRobinQueue<u64, true>>(
-        TAILCLIPPER_POPS_WITH_INFRA_QUEUE,
-    );
-}
-
 /// `custom::Queue` starts as a copy of the priority heap.
 #[test]
 fn custom_replay_scripts() {
     check::<crate::custom::Queue<u64>>(PRIO_HEAP_POPS);
 }
 
-/// The queue the active Cargo features select behaves as that queue's script
-/// expects.
+/// Default selections retain their historical replay behavior. An external
+/// queue owns its policy-specific expectations alongside its source.
+#[cfg(not(rpcstack_external_queue))]
 #[test]
 fn selected_queue_replay_scripts() {
-    #[cfg(feature = "sched_custom")]
-    let expected = PRIO_HEAP_POPS;
-    #[cfg(all(
-        feature = "sched_prio",
-        feature = "tailclipper",
-        not(feature = "sched_custom")
-    ))]
-    let expected = TAILCLIPPER_POPS_WITHOUT_INFRA_QUEUE;
-    #[cfg(all(
-        feature = "sched_prio",
-        not(feature = "tailclipper"),
-        not(feature = "sched_custom")
-    ))]
+    #[cfg(any(feature = "sched_custom", feature = "sched_prio"))]
     let expected = PRIO_HEAP_POPS;
     #[cfg(not(any(feature = "sched_prio", feature = "sched_custom")))]
     let expected = FIFO_POPS;
-
     check::<crate::SelectedQueue<u64>>(expected);
 }

@@ -5,6 +5,17 @@ policy, once synchronous lifecycle hooks are supplemented with async attempt
 control and explicit service resources. They do **not** establish that arbitrary
 transport or scheduling policies can be implemented faithfully inside Tonic/Tokio.
 
+## Example discovery and custom queues
+
+Start at [the examples index](../examples/README.md). Each paper has a direct
+`examples/<paper>/` folder with its implementation, tests and fidelity notes.
+Shared composition fixtures live in `examples/policy-composition/`.
+
+For a new run queue, keep its source with the application or paper example and
+select it using `RPCSTACK_QUEUE_SOURCE` plus `tokio/sched_custom`; see the
+[scheduler interface](../libs/rpcstack-sched/README.md). The editable framework
+`custom.rs` slot remains available when no external source is specified.
+
 ## Choose the extension point from the required mechanism
 
 | Required behavior | Extension point | Executed example |
