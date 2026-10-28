@@ -3,16 +3,39 @@ name = "rpcstack-policy-composition"
 version = "0.1.0"
 edition = "2021"
 publish = false
-[dev-dependencies]
+[dependencies]
 rpcstack = { path = "../../libs/rpcstack" }
-rpcstack-call = { path = "../../libs/rpcstack-call" }
 rpcstack-tonic = { path = "../../libs/rpcstack-tonic" }
-rpcstack-testkit = { path = "../testkit" }
-rpcstack-dagor = { path = "../policies/dagor" }
-rpcstack-breakwater = { path = "../policies/breakwater" }
-rpcstack-c3 = { path = "../policies/c3" }
 tonic = { path = "../../libs/tonic/tonic" }
 tokio = { path = "../../libs/tokio/tokio", features = ["macros", "rt", "net", "time"] }
 tokio-stream = { version = "=0.1.15", features = ["net"] }
+
+tailclipper = { path = "../tailclipper" }
+rajomon = { path = "../rajomon" }
+prost = "0.12"
+
+[dev-dependencies]
+rpcstack-call = { path = "../../libs/rpcstack-call" }
+rpcstack-testkit = { path = "../testkit" }
+rpcstack-dagor = { path = "../dagor" }
+rpcstack-breakwater = { path = "../breakwater" }
+rpcstack-c3 = { path = "../c3" }
 masa-policy = { path = "../masa/masa-policy" }
 masa-core = { path = "../masa/masa-core" }
+
+[build-dependencies]
+tonic-build = { path = "../../libs/tonic/tonic-build" }
+
+[features]
+default = []
+orf = ["tokio/sched_custom", "tonic/rpcstack"]
+
+[[example]]
+name = "arrival-price"
+path = "examples/arrival_price.rs"
+required-features = ["orf"]
+
+[[test]]
+name = "arrival_price"
+path = "tests/arrival_price.rs"
+required-features = ["orf"]

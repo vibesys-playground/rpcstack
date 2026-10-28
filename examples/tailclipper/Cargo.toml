@@ -1,0 +1,16 @@
+[package]
+name = "tailclipper"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+rpcstack = { path = "../../libs/rpcstack" }
+rpcstack-wire = { path = "../../libs/rpcstack-wire" }
+tonic = { path = "../../libs/tonic/tonic", default-features = false, features = ["transport"] }
+tokio = { path = "../../libs/tokio/tokio", features = ["rt"] }
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+rpcstack-tonic = { path = "../../libs/rpcstack-tonic" }
+http = "0.2"

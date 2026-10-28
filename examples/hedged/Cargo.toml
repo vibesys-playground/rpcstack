@@ -1,0 +1,16 @@
+[package]
+name = "rpcstack-hedged"
+version = "0.1.0"
+edition = "2021"
+publish = false
+[lib]
+path = "lib.rs"
+[dependencies]
+tonic = { path = "../../libs/tonic/tonic" }
+tokio = { path = "../../libs/tokio/tokio", features = ["time", "sync", "macros"] }
+[dev-dependencies]
+rpcstack = { path = "../../libs/rpcstack" }
+rpcstack-call = { path = "../../libs/rpcstack-call" }
+rpcstack-tonic = { path = "../../libs/rpcstack-tonic" }
+rpcstack-testkit = { path = "../testkit" }
+tokio = { path = "../../libs/tokio/tokio", features = ["rt", "test-util"] }

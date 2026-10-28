@@ -10,11 +10,13 @@ metadata = json.loads(subprocess.check_output(
 allowed = {
     "rpcstack", "rpcstack-wire", "rpcstack-tonic", "rpcstack-sched", "rpcstack-call",
     "tonic", "tonic-build", "hyper", "tokio", "multiqueue-prio-queue",
-    "rpcstack-echo", "rajomon", "tailclipper", "paper-rpc",
+    "rpcstack-echo", "rajomon", "tailclipper",
     "masa", "masa-core", "masa-policy", "masa-semantics",
     "rpcstack-dagor", "rpcstack-breakwater", "rpcstack-hedged", "rpcstack-c3",
     "rpcstack-atropos", "rpcstack-rifl", "rpcstack-r2p2", "rpcstack-persephone", "rpcstack-protego", "rpcstack-aequitas", "rpcstack-testkit", "rpcstack-policy-composition",
 }
+assert not (root / "examples" / "policies").exists(), "Paper examples must be direct children of examples/"
+assert not (root / "examples" / "paper-rpc").exists(), "Use named paper examples or policy-composition"
 for package in metadata["packages"]:
     if package["name"].startswith("masa"):
         assert Path(package["manifest_path"]).is_relative_to(root / "examples" / "masa"), package["name"]
@@ -22,6 +24,10 @@ for package in metadata["packages"]:
         continue
     assert package["name"] in allowed, package["name"]
     assert Path(package["manifest_path"]).is_relative_to(root), package["manifest_path"]
+    paper = package["name"].removeprefix("rpcstack-")
+    if paper in {"rajomon", "tailclipper", "dagor", "breakwater", "hedged", "c3",
+                 "aequitas", "protego", "persephone", "r2p2", "rifl", "atropos"}:
+        assert Path(package["manifest_path"]).parent == root / "examples" / paper, package["name"]
     deps = {dep["name"] for dep in package["dependencies"]}
     if Path(package["manifest_path"]).is_relative_to(root / "libs"):
         assert not deps & {"rajomon", "tailclipper"}, deps

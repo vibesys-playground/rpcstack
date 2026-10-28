@@ -1,4 +1,7 @@
 //! Executable evidence that independent RPC modules and async call policies compose.
+#[cfg(feature = "orf")]
+pub mod arrival_price;
+
 #[cfg(test)]
 mod tests {
     use rpcstack_breakwater::{
